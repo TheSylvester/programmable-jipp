@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+ENV/
+.env
+*.db
+*.sqlite3
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Images for testing
+*.jpg
+
+# Jupyter Notebook
+.ipynb_checkpoints
