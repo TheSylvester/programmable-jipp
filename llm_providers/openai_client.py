@@ -1,43 +1,53 @@
 import base64
 import io
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from PIL import Image
-from openai import OpenAI
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion
+
+from jippity_core.tool_calling import (
+    create_function_response_message,
+    execute_tool_call,
+)
 from .llm_client import LLMClient
-from models.llm_models import Message, MessageContent, OpenAIInput as OpenAIClientInput
+from models.llm_models import (
+    Function,
+    Message,
+    MessageContent,
+    OpenAIInput as OpenAIClientInput,
+    ToolCall,
+)
 from error_handlers.openai_error import handle_openai_error
 
 
 class OpenAIClient(LLMClient):
     def __init__(self):
-        self.client = OpenAI()
+        self.client = AsyncOpenAI()
 
-    def generate_response(self, input_data: OpenAIClientInput) -> Message:
+    async def generate_response(self, input_data: OpenAIClientInput) -> Message:
         try:
             # Process tools if any
             if input_data.tools:
                 input_data.tool_choice = input_data.tool_choice or "auto"
 
-            # Process and create image content
-            self._process_image_content(input_data)
-
             # Convert Pydantic model to dict, excluding None values
             input_dict = input_data.model_dump(exclude_none=True)
 
-            # Convert messages to the format expected by OpenAI
-            input_dict["messages"] = [
-                {
-                    "role": m["role"],
-                    "content": (
-                        m["content"]
-                        if isinstance(m["content"], str)
-                        else [c for c in m["content"]]
-                    ),
-                }
-                for m in input_dict["messages"]
-            ]
+            # Process messages
+            input_dict["messages"] = self._process_messages(input_data.messages)
 
-            response = self.client.chat.completions.create(**input_dict)
+            # Get the response from OpenAI
+            response = await self.client.chat.completions.create(**input_dict)
+
+            # Process tool calls if any
+            if input_data.tools:
+                messages = await self._process_tool_calls(response, input_data.tools)
+                if messages:
+                    # generate a new response with the tool calls
+                    response = await self.client.chat.completions.create(
+                        **input_dict, messages=messages
+                    )
+
             return Message(
                 role=response.choices[0].message.role,
                 content=response.choices[0].message.content,
@@ -49,17 +59,48 @@ class OpenAIClient(LLMClient):
                 content=f"An error occurred: {str(error)}",
             )
 
-    def _process_image_content(self, input_data: OpenAIClientInput):
-        for message in reversed(input_data.messages):
-            if message.role == "user":
-                if isinstance(message.content, str):
-                    message.content = [
-                        MessageContent(type="text", text=message.content)
-                    ]
-                break
+    def _process_messages(self, messages: List[Message]) -> List[Dict]:
+        processed_messages = []
+        for message in messages:
+            processed_content = self._process_message_content(message.content)
+            processed_messages.append(
+                {"role": message.role, "content": processed_content}
+            )
+        return processed_messages
 
-    def _create_image_message_from_url(self, url: str) -> MessageContent:
-        return MessageContent(type="image_url", image_url={"url": url})
+    def _process_message_content(
+        self, content: Union[str, List[MessageContent]]
+    ) -> Union[str, List[Dict]]:
+        if isinstance(content, str):
+            return content
+
+        processed_content = []
+        for item in content:
+            if not isinstance(item, MessageContent):
+                raise ValueError(f"Expected MessageContent, got {type(item)}")
+            if item.type == "text":
+                processed_content.append({"type": "text", "text": item.text})
+            elif item.type == "image_url":
+                processed_content.append(self._process_image_url(item.image_url))
+            else:
+                raise ValueError(f"Unsupported content type: {item.type}")
+
+        return processed_content
+
+    def _process_image_url(self, image_url: Dict[str, str]) -> Dict:
+        if "url" in image_url:
+            return {"type": "image_url", "image_url": image_url}
+        elif "filepath" in image_url:
+            return {
+                "type": "image_url",
+                "image_url": self._create_image_message_from_filepath(
+                    image_url["filepath"]
+                ).image_url,
+            }
+        else:
+            raise ValueError(
+                "Image URL dictionary must contain either 'url' or 'filepath' key"
+            )
 
     def _create_image_message_from_filepath(self, filepath: str) -> MessageContent:
         with open(filepath, "rb") as image_file:
@@ -71,3 +112,34 @@ class OpenAIClient(LLMClient):
                 type="image_url",
                 image_url={"url": f"data:image/{format.lower()};base64,{base64_image}"},
             )
+
+    async def _process_tool_calls(
+        self, response: ChatCompletion, available_functions: List[Dict[str, Any]]
+    ) -> List[Message]:
+        messages = []
+        tool_calls = self._extract_tool_calls(response)
+
+        for tool_call in tool_calls:
+            function_output = await execute_tool_call(tool_call, available_functions)
+            function_response = create_function_response_message(
+                function_output, tool_call.id, tool_call.function.name
+            )
+            messages.append(function_response)
+
+        return messages
+
+    def _extract_tool_calls(self, response: ChatCompletion) -> List[ToolCall]:
+        tool_calls = []
+        for choice in response.choices:
+            if choice.message.tool_calls:
+                for tool_call in choice.message.tool_calls:
+                    function = Function(
+                        name=tool_call.function.name,
+                        arguments=tool_call.function.arguments,
+                    )
+                    tool_calls.append(
+                        ToolCall(
+                            id=tool_call.id, type=tool_call.type, function=function
+                        )
+                    )
+        return tool_calls

@@ -1,6 +1,7 @@
+import asyncio
 from collections.abc import Sequence
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any, Union
+from pydantic import BaseModel, Field
+from typing import Callable, List, Optional, Dict, Any, Union
 
 
 class MessageContent(BaseModel):
@@ -9,9 +10,64 @@ class MessageContent(BaseModel):
     image_url: Optional[Dict[str, str]] = None
 
 
+class Tool(BaseModel):
+    name: str
+    description: str
+    parameters_model: Optional[BaseModel] = None
+    parameters: Optional[Dict] = None
+    function: Callable[..., Any]  # Callable with any arguments and any return type
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def __call__(self, *args, **kwargs) -> Union[str, asyncio.coroutine]:
+        # Validate arguments against the Pydantic model
+        if self.parameters_model:
+            try:
+                validated_args = self.parameters_model(**kwargs)
+                kwargs = validated_args.model_dump()
+            except ValueError as e:
+                return f"Error: Invalid arguments for {self.name}: {str(e)}"
+
+        # Execute the function with validated arguments
+        if asyncio.iscoroutinefunction(self.function):
+            return self._async_execute(*args, **kwargs)
+        else:
+            return self._sync_execute(*args, **kwargs)
+
+    def _sync_execute(self, *args, **kwargs) -> str:
+        try:
+            result = self.function(*args, **kwargs)
+            return str(result)
+        except Exception as e:
+            return f"Error executing {self.name}: {str(e)}"
+
+    async def _async_execute(self, *args, **kwargs) -> str:
+        try:
+            result = await self.function(*args, **kwargs)
+            return str(result)
+        except Exception as e:
+            return f"Error executing {self.name}: {str(e)}"
+
+
+class Function(BaseModel):
+    name: str
+    arguments: Dict[str, Union[str, int, float, bool, List, Dict]]
+
+
+class ToolCall(BaseModel):
+    id: str
+    type: str = "function"
+    function: Function
+
+
 class Message(BaseModel):
     role: str
-    content: Union[str, List[MessageContent]]
+    content: Union[str, List[MessageContent], None] = None
+    refusal: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
+
+    class Config:
+        extra = "allow"  # To allow for potential future fields
 
 
 class BaseLLMInput(BaseModel):
@@ -79,5 +135,8 @@ class LLMResponse(BaseModel, Sequence):
     def __str__(self) -> str:
         for message in reversed(self.messages):
             if message.role == "assistant":
-                return str(message.content)
+                if isinstance(message.content, str):
+                    return message.content
+                elif isinstance(message.content, list):
+                    return " ".join(item.text for item in message.content if item.text)
         return ""
