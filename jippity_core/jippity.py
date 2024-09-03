@@ -1,6 +1,6 @@
 from typing import Callable, Any
 import re
-from jippity_core.chat_llm import ask_llm, AskLLMInput, LLMResponse
+from jipp import ChatLLM, AskLLMInput, LLMResponse  # Updated imports
 from llm_providers.llm_selector import is_model_supported
 from models.message_context import MessageContext
 
@@ -15,6 +15,7 @@ class Jippity:
         self.last_response: LLMResponse | None = None
         self.system_prompt = system_prompt
         self.model = model
+        self.chat_llm = ChatLLM()  # Initialize ChatLLM instance
 
     async def handle_message(
         self, context: MessageContext, send_response: Callable[[str], Any]
@@ -31,7 +32,7 @@ class Jippity:
             additional_kwargs={},
         )
 
-        self.last_response = ask_llm(input_data)
+        self.last_response = await self.chat_llm.ask_llm(input_data)  # Updated call
 
         return str(self.last_response) if self.last_response else ""
 

@@ -1,6 +1,5 @@
 import os
 from dotenv import load_dotenv
-import asyncio
 import nextcord
 from nextcord.ext import commands
 from jippity_core.jippity import Jippity

@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any, Union
 from PIL import Image
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
+from pydantic import BaseModel
 
 from jippity_core.tool_calling import (
     create_function_response_message,
@@ -30,34 +31,53 @@ class OpenAIClient(LLMClient):
             if input_data.tools:
                 input_data.tool_choice = input_data.tool_choice or "auto"
 
-            # Convert Pydantic model to dict, excluding None values
-            input_dict = input_data.model_dump(exclude_none=True)
-
             # Process messages
-            input_dict["messages"] = self._process_messages(input_data.messages)
+            messages = self._process_messages(input_data.messages)
 
-            # Get the response from OpenAI
-            response = await self.client.chat.completions.create(**input_dict)
+            response = await self._create_completion(input_data, messages)
 
             # Process tool calls if any
             if input_data.tools:
                 messages = await self._process_tool_calls(response, input_data.tools)
                 if messages:
                     # generate a new response with the tool calls
-                    response = await self.client.chat.completions.create(
-                        **input_dict, messages=messages
-                    )
+                    response = await self._create_completion(input_data, messages)
 
-            return Message(
-                role=response.choices[0].message.role,
-                content=response.choices[0].message.content,
-            )
+            return self._create_message_from_response(response)
         except Exception as error:
             handle_openai_error(error)
             return Message(
                 role="error",
                 content=f"An error occurred: {str(error)}",
             )
+
+    async def _create_completion(
+        self, input_data: OpenAIClientInput, messages: List[Dict]
+    ) -> Union[ChatCompletion, Any]:
+        if input_data.response_format and isinstance(
+            input_data.response_format, BaseModel
+        ):
+            return await self._create_structured_chat_completions(input_data, messages)
+        else:
+            return await self._create_chat_completions(input_data, messages)
+
+    async def _create_chat_completions(
+        self, input_data: OpenAIClientInput, messages: List[Dict]
+    ) -> ChatCompletion:
+        # Convert Pydantic model to dict, excluding None values
+        input_dict = input_data.model_dump(exclude_none=True)
+        input_dict["messages"] = messages
+
+        return await self.client.chat.completions.create(**input_dict)
+
+    async def _create_structured_chat_completions(
+        self, input_data: OpenAIClientInput, messages: List[Dict]
+    ) -> Any:
+        # Convert Pydantic model to dict, excluding None values
+        input_dict = input_data.model_dump(exclude_none=True)
+        input_dict["messages"] = messages
+
+        return await self.client.beta.chat.completions.parse(**input_dict)
 
     def _process_messages(self, messages: List[Message]) -> List[Dict]:
         processed_messages = []
@@ -114,7 +134,9 @@ class OpenAIClient(LLMClient):
             )
 
     async def _process_tool_calls(
-        self, response: ChatCompletion, available_functions: List[Dict[str, Any]]
+        self,
+        response: Union[ChatCompletion, Any],
+        available_functions: List[Dict[str, Any]],
     ) -> List[Message]:
         messages = []
         tool_calls = self._extract_tool_calls(response)
@@ -128,18 +150,37 @@ class OpenAIClient(LLMClient):
 
         return messages
 
-    def _extract_tool_calls(self, response: ChatCompletion) -> List[ToolCall]:
+    def _extract_tool_calls(
+        self, response: Union[ChatCompletion, Any]
+    ) -> List[ToolCall]:
         tool_calls = []
-        for choice in response.choices:
-            if choice.message.tool_calls:
-                for tool_call in choice.message.tool_calls:
-                    function = Function(
-                        name=tool_call.function.name,
-                        arguments=tool_call.function.arguments,
-                    )
-                    tool_calls.append(
-                        ToolCall(
-                            id=tool_call.id, type=tool_call.type, function=function
+        if isinstance(response, ChatCompletion):
+            for choice in response.choices:
+                if choice.message.tool_calls:
+                    for tool_call in choice.message.tool_calls:
+                        function = Function(
+                            name=tool_call.function.name,
+                            arguments=tool_call.function.arguments,
                         )
-                    )
+                        tool_calls.append(
+                            ToolCall(
+                                id=tool_call.id, type=tool_call.type, function=function
+                            )
+                        )
+        # Add handling for structured responses if needed
         return tool_calls
+
+    def _create_message_from_response(
+        self, response: Union[ChatCompletion, Any]
+    ) -> Message:
+        if isinstance(response, ChatCompletion):
+            return Message(
+                role=response.choices[0].message.role,
+                content=response.choices[0].message.content,
+            )
+        else:
+            # For structured responses
+            return Message(
+                role="assistant",
+                content=str(response),  # Convert the structured response to a string
+            )

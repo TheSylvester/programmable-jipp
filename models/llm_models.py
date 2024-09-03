@@ -19,7 +19,7 @@ class Tool(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    def __call__(self, *args, **kwargs) -> Union[str, asyncio.coroutine]:
+    def __call__(self, *args, **kwargs) -> Any:
         # Validate arguments against the Pydantic model
         if self.parameters_model:
             try:
@@ -88,7 +88,7 @@ class BaseLLMInput(BaseModel):
 class OpenAIInput(BaseLLMInput):
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-    response_format: Optional[Dict[str, str]] = None
+    response_format: Optional[Union[Dict[str, str], BaseModel]] = None
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
     top_p: Optional[float] = None
