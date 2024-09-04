@@ -1,13 +1,21 @@
 from .jipp_models import (
-    LLMMessage,
-    CompletionUsage,
-    LLMResponse,
-    JippResponse,
+    Function,
+    Tool,
+    ToolCall,
+    MessageContentText,
+    ImageURL,
+    MessageContentImage,
+    LLMError,
+    Conversation,
 )
 
 __all__ = [
-    "LLMMessage",
-    "CompletionUsage",
-    "LLMResponse",
-    "JippResponse",
+    "Function",
+    "Tool",
+    "ToolCall",
+    "MessageContentText",
+    "ImageURL",
+    "MessageContentImage",
+    "LLMError",
+    "Conversation",
 ]

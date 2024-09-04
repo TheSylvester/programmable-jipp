@@ -2,8 +2,8 @@ from typing import List
 import tiktoken
 from transformers import AutoTokenizer
 
-from jipp.models.llm_models import Message, MessageContent
 from jipp.llms.llm_selector import get_model_context_window
+from jipp.models.jipp_models import LLMMessage
 
 
 def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
@@ -80,7 +80,7 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
         return estimated_token_count
 
 
-def get_text_from_message(message: Message) -> str:
+def get_text_from_message(message: LLMMessage) -> str:
     """
     Extract the usable text content from a Message object.
 
@@ -122,8 +122,8 @@ def count_tokens_in_messages(messages: list, model: str = "gpt-3.5-turbo") -> in
 
 
 def trim_messages_to_context_window(
-    messages: List[Message], model: str = "gpt-3.5-turbo"
-) -> List[Message]:
+    messages: List[LLMMessage], model: str = "gpt-3.5-turbo"
+) -> List[LLMMessage]:
     """
     Trim the messages to fit within the context window by removing the oldest non-system messages.
 

@@ -5,11 +5,9 @@ from typing import List, Dict, Type
 import json
 
 from pytest import Function
-
-from models.llm_models import Message, Tool, ToolCall
 from typing import List, Dict, Any
-from openai.types.chat import ChatCompletionMessageToolCall
-from models.llm_models import Message, ToolCall, Function
+
+from jipp.models.jipp_models import ToolCall
 
 
 # def handle_tool_calling(
@@ -31,8 +29,8 @@ from models.llm_models import Message, ToolCall, Function
 
 
 async def execute_tool_call(
-    tool_call: ChatCompletionMessageToolCall,
-    tools: List[Tool],
+    tool_call: ToolCall,
+    tools: List[BaseModel],
 ) -> str:
     for tool in tools:
         if tool.name == tool_call.function.name:

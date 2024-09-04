@@ -11,11 +11,11 @@ MODEL_INFO = {
         "client": OpenAIClient,
         "context_window": 128000,
     },
-    "gpt-3.5-turbo": {
-        "provider": "openai",
-        "client": OpenAIClient,
-        "context_window": 4096,
-    },
+    # "gpt-3.5-turbo": {
+    #     "provider": "openai",
+    #     "client": OpenAIClient,
+    #     "context_window": 4096,
+    # },
     "claude-3-5-sonnet-20240620": {
         "provider": "anthropic",
         "client": AnthropicClient,
