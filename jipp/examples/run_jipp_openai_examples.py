@@ -1,10 +1,9 @@
 import asyncio
-import os
 from typing import List
 from pydantic import BaseModel, Field
 
-from jipp.llms.openai_client import LLMError, ask_openai
-from jipp.models.jipp_models import LLMMessage
+from ..llms.openai_client import ask_openai
+from ..models.jipp_models import LLMMessage, LLMError
 
 
 async def run_ask_openai_basic():

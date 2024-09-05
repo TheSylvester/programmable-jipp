@@ -1,8 +1,6 @@
 import asyncio
-import os
 from typing import List
 from pydantic import BaseModel, Field
-
 from jipp.jipp_core import ask_llm
 from jipp.models.jipp_models import LLMError
 
@@ -82,19 +80,6 @@ async def run_ask_llm_with_tools():
         # This is a mock function. In a real scenario, you'd call a weather API here.
         return f"The weather in {location} is 72°{unit}."
 
-    # weather_tool = Tool(definition=WeatherTool, function=get_weather)
-
-    # try:
-    #     conversation = await ask_llm(
-    #         model="gpt-4o-mini",
-    #         prompt="What's the weather in NYC?",
-    #         system="Use the WeatherTool to get the weather. Default to Fahrenheit.",
-    #         tools=[weather_tool],
-    #         tool_choice="auto",
-    #     )
-
-    # weather_tool = Tool(definition=WeatherTool, function=get_weather)
-
     try:
         conversation = await ask_llm(
             model="gpt-4o-mini",
@@ -161,13 +146,13 @@ async def run_ask_llm_with_images():
 
 async def run_all_tests():
     await run_ask_llm_basic()
-    await run_ask_llm_with_temperature()
-    await run_ask_llm_with_max_tokens()
-    await run_ask_llm_with_stop()
-    await run_ask_llm_with_tools()
-    await run_ask_llm_with_response_format()
-    await run_ask_llm_error()
-    await run_ask_llm_with_images()
+    # await run_ask_llm_with_temperature()
+    # await run_ask_llm_with_max_tokens()
+    # await run_ask_llm_with_stop()
+    # await run_ask_llm_with_tools()
+    # await run_ask_llm_with_response_format()
+    # await run_ask_llm_error()
+    # await run_ask_llm_with_images()
 
 
 def main():

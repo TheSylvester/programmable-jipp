@@ -1,6 +1,9 @@
 setup.py
 config/__init__.py
 config/settings.py
+examples/__init__.py
+examples/run_jipp_examples.py
+examples/run_jipp_openai_examples.py
 jipp.egg-info/PKG-INFO
 jipp.egg-info/SOURCES.txt
 jipp.egg-info/dependency_links.txt
@@ -9,6 +12,7 @@ jipp.egg-info/top_level.txt
 llms/__init__.py
 llms/llm_selector.py
 llms/openai_client.py
+llms/pydantic_to_schema.py
 models/__init__.py
 models/jipp_models.py
 utils/__init__.py
