@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List
 from jipp.llms.openai_client import ask_openai, LLMError
 from jipp.models.jipp_models import LLMMessage, LLMResponse
+from jipp.jipp_core import _create_image_message_content_from_filepath
 
 
 @pytest.mark.asyncio
@@ -106,4 +107,44 @@ async def test_ask_openai_error():
     assert "The model `non-existent-model` does not exist" in str(exc_info.value)
 
 
-# Add more test cases as needed
+@pytest.mark.asyncio
+async def test_ask_openai_with_images():
+    # Test images and filepaths
+    image_url_1 = "https://images.squarespace-cdn.com/content/v1/60f1a490a90ed8713c41c36c/1629223610791-LCBJG5451DRKX4WOB4SP/37-design-powers-url-structure.jpeg"
+    image_filepath_1 = "tests/rabbit.jpg"
+
+    messages = [
+        LLMMessage(
+            role="user",
+            content=[
+                {"type": "text", "text": "What's in each of these images?"},
+                {"type": "image_url", "image_url": {"url": image_url_1}},
+                # {"type": "image_url", "image_url": {"url": image_url_2}},
+                _create_image_message_content_from_filepath(image_filepath_1),
+                # _create_image_message_content_from_filepath(image_filepath_2),
+            ],
+        )
+    ]
+
+    response = await ask_openai(messages=messages, model="gpt-4o", temperature=0.0)
+
+    assert isinstance(response, LLMResponse)
+    assert isinstance(response.message, LLMMessage)
+    assert response.message.role == "assistant"
+    assert response.message.content is not None
+    assert len(response.message.content) > 0
+
+    content = response.message.content.lower()
+
+    # Check if the response mentions key elements from each image
+    assert "target" in content or "bullseye" in content
+    assert (
+        "rabbit" in content
+        or "bunny" in content
+        or "animal" in content
+        or "toy" in content
+    )
+
+    assert response.usage is not None
+    assert "gpt-4o" in response.model
+    assert response.finish_reason == "stop"

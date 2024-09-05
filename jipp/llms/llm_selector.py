@@ -88,11 +88,11 @@ def get_model_provider(model: str) -> str:
     return model_info["provider"]
 
 
-def get_llm_info(model: str) -> dict:
+def get_model_profile(model: str) -> dict:
     model_lower = model.lower()
     model_info = MODEL_INFO.get(model_lower)
 
     if not model_info:
-        raise ValueError(f"No information found for model: {model}")
+        raise ValueError(f"Model {model} is not supported")
 
     return model_info

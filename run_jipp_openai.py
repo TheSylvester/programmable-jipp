@@ -118,14 +118,45 @@ async def run_ask_openai_error():
         print(f"Error test failed with unexpected exception: {e}")
 
 
+async def run_ask_openai_with_images():
+    from jipp.jipp_core import _create_image_message_content_from_filepath
+
+    # test images and filepaths
+    image_url_1 = "https://images.squarespace-cdn.com/content/v1/60f1a490a90ed8713c41c36c/1629223610791-LCBJG5451DRKX4WOB4SP/37-design-powers-url-structure.jpeg"
+    image_url_2 = "https://www.boredpanda.com/blog/wp-content/uploads/2023/10/CvfMHtxsuYS-png__700.jpg"
+    image_filepath_1 = "tests/penguin.jpg"
+    image_filepath_2 = "tests/rabbit.jpg"
+
+    messages = [
+        LLMMessage(
+            role="user",
+            content=[
+                {"type": "text", "text": "What's in each of these images?"},
+                {"type": "image_url", "image_url": {"url": image_url_1}},
+                {"type": "image_url", "image_url": {"url": image_url_2}},
+                _create_image_message_content_from_filepath(image_filepath_1),
+                _create_image_message_content_from_filepath(image_filepath_2),
+            ],
+        )
+    ]
+
+    try:
+        response = await ask_openai(messages=messages, model="gpt-4o")
+        print("\nImage Inference Response:")
+        print("Content:", response.message.content)
+    except Exception as e:
+        print(f"Image inference test failed with exception: {e}")
+
+
 async def run_all_tests():
-    await run_ask_openai_basic()
-    await run_ask_openai_with_temperature()
-    await run_ask_openai_with_max_tokens()
-    await run_ask_openai_with_stop()
+    # await run_ask_openai_basic()
+    # await run_ask_openai_with_temperature()
+    # await run_ask_openai_with_max_tokens()
+    # await run_ask_openai_with_stop()
     await run_ask_openai_with_tools()
-    await run_ask_openai_with_response_format()
-    await run_ask_openai_error()
+    # await run_ask_openai_with_response_format()
+    # await run_ask_openai_error()
+    # await run_ask_openai_with_images()
 
 
 def main():
