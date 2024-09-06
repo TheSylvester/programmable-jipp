@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -9,14 +10,17 @@ import asyncio
 from typing import List
 from pydantic import BaseModel, Field
 
-from jipp.llms.openai_client import ask_openai
+from jipp.llms.groq_client import ask_groq
 from jipp.models.jipp_models import LLMMessage, LLMError
 
 
-async def run_ask_openai_basic():
+async def run_ask_groq_basic():
+    print("Running basic test")
     messages = [LLMMessage(role="user", content="Say 'Hello, World!'")]
     try:
-        response = await ask_openai(messages=messages, model="gpt-4o-mini")
+        response = await ask_groq(
+            messages=messages, model="llama3-groq-8b-8192-tool-use-preview"
+        )
         print("Basic Response:")
         print("Role:", response.message.role)
         print("Content:", response.message.content)
@@ -27,13 +31,15 @@ async def run_ask_openai_basic():
         print(f"Basic test failed with exception: {e}")
 
 
-async def run_ask_openai_with_temperature():
+async def run_ask_groq_with_temperature():
     messages = [
         LLMMessage(role="user", content="Generate a random number between 1 and 10")
     ]
     try:
-        response = await ask_openai(
-            messages=messages, model="gpt-4o-mini", temperature=0.7
+        response = await ask_groq(
+            messages=messages,
+            model="llama3-groq-8b-8192-tool-use-preview",
+            temperature=0.7,
         )
         print("\nTemperature Response:")
         print("Role:", response.message.role)
@@ -42,11 +48,13 @@ async def run_ask_openai_with_temperature():
         print(f"Temperature test failed with exception: {e}")
 
 
-async def run_ask_openai_with_max_tokens():
+async def run_ask_groq_with_max_tokens():
     messages = [LLMMessage(role="user", content="Write a long story about a dragon")]
     try:
-        response = await ask_openai(
-            messages=messages, model="gpt-4o-mini", max_tokens=50
+        response = await ask_groq(
+            messages=messages,
+            model="llama3-groq-8b-8192-tool-use-preview",
+            max_tokens=50,
         )
         print("\nMax Tokens Response:")
         print("Content:", response.message.content)
@@ -57,17 +65,19 @@ async def run_ask_openai_with_max_tokens():
         print(f"Max tokens test failed with exception: {e}")
 
 
-async def run_ask_openai_with_stop():
+async def run_ask_groq_with_stop():
     messages = [LLMMessage(role="user", content="Count from 1 to 10")]
     try:
-        response = await ask_openai(messages=messages, model="gpt-4o-mini", stop=["5"])
+        response = await ask_groq(
+            messages=messages, model="llama3-groq-8b-8192-tool-use-preview", stop=["5"]
+        )
         print("\nStop Sequence Response:")
         print("Content:", response.message.content)
     except Exception as e:
         print(f"Stop sequence test failed with exception: {e}")
 
 
-async def run_ask_openai_with_tools():
+async def run_ask_groq_with_tools():
     class WeatherTool(BaseModel):
         """Tool for getting the weather."""
 
@@ -85,46 +95,49 @@ async def run_ask_openai_with_tools():
         LLMMessage(role="user", content="What's the weather in NYC?"),
     ]
     try:
-        response = await ask_openai(
+        response = await ask_groq(
             messages=messages,
-            model="gpt-4o-mini",
+            model="llama3-groq-8b-8192-tool-use-preview",
             tools=[WeatherTool],
             tool_choice="auto",
         )
-        print("\nTool Usage Response:", response)
+        print("\nTool Usage Response:")
         print("Content:", response.message.content)
         print("Tool Calls:", response.message.tool_calls)
     except Exception as e:
         print(f"Tool usage test failed with exception: {e}")
 
 
-async def run_ask_openai_with_response_format():
+async def run_ask_groq_with_response_format():
     class ResponseFormat(BaseModel):
         summary: str
         key_points: List[str]
 
     messages = [LLMMessage(role="user", content="Summarize the benefits of exercise")]
     try:
-        response = await ask_openai(
-            messages=messages, model="gpt-4o-mini", response_format=ResponseFormat
+        response = await ask_groq(
+            messages=messages,
+            model="llama3-groq-8b-8192-tool-use-preview",
+            response_format=ResponseFormat,
         )
         print("\nResponse Format Test:")
         print("Content:", response.message.content)
-        # You would typically parse this content as JSON and validate against ResponseFormat
+        print("JSON.loads: ", json.loads(response.message.content))
+        print("Parsed:", ResponseFormat.model_validate_json(response.message.content))
     except Exception as e:
         print(f"Response format test failed with exception: {e}")
 
 
-async def run_ask_openai_error():
+async def run_ask_groq_error():
     try:
-        await ask_openai(messages=[], model="non-existent-model")
+        await ask_groq(messages=[], model="non-existent-model")
     except LLMError as e:
         print("\nError test raised expected exception:", e)
     except Exception as e:
         print(f"Error test failed with unexpected exception: {e}")
 
 
-async def run_ask_openai_with_images():
+async def run_ask_groq_with_images():
     from jipp.jipp_core import _create_image_message_content_from_filepath
 
     # test images and filepaths
@@ -147,7 +160,9 @@ async def run_ask_openai_with_images():
     ]
 
     try:
-        response = await ask_openai(messages=messages, model="gpt-4o")
+        response = await ask_groq(
+            messages=messages, model="llama3-groq-8b-8192-tool-use-preview"
+        )
         print("\nImage Inference Response:")
         print("Content:", response.message.content)
     except Exception as e:
@@ -155,14 +170,14 @@ async def run_ask_openai_with_images():
 
 
 async def run_all_tests():
-    # await run_ask_openai_basic()
-    # await run_ask_openai_with_temperature()
-    # await run_ask_openai_with_max_tokens()
-    # await run_ask_openai_with_stop()
-    await run_ask_openai_with_tools()
-    # await run_ask_openai_with_response_format()
-    # await run_ask_openai_error()
-    # await run_ask_openai_with_images()
+    # await run_ask_groq_basic()
+    # await run_ask_groq_with_temperature()
+    # await run_ask_groq_with_max_tokens()
+    # await run_ask_groq_with_stop()
+    await run_ask_groq_with_tools()
+    # await run_ask_groq_with_response_format()
+    # await run_ask_groq_error()
+    # await run_ask_groq_with_images()
 
 
 def main():

@@ -1,3 +1,10 @@
+import os
+import sys
+
+# Add the project root directory to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)
+
 import asyncio
 from typing import List
 from pydantic import BaseModel, Field
@@ -146,13 +153,13 @@ async def run_ask_llm_with_images():
 
 async def run_all_tests():
     await run_ask_llm_basic()
-    # await run_ask_llm_with_temperature()
-    # await run_ask_llm_with_max_tokens()
-    # await run_ask_llm_with_stop()
-    # await run_ask_llm_with_tools()
-    # await run_ask_llm_with_response_format()
-    # await run_ask_llm_error()
-    # await run_ask_llm_with_images()
+    await run_ask_llm_with_temperature()
+    await run_ask_llm_with_max_tokens()
+    await run_ask_llm_with_stop()
+    await run_ask_llm_with_tools()
+    await run_ask_llm_with_response_format()
+    await run_ask_llm_error()
+    await run_ask_llm_with_images()
 
 
 def main():

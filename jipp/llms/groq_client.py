@@ -1,16 +1,10 @@
+import json
 import os
-from typing import Union, Optional, Dict, List, Any, Tuple
+from typing import Union, Optional, Dict, List, Any
+from openai import pydantic_function_tool
 from pydantic import BaseModel
-from openai import AsyncOpenAI
-from openai.types.chat import (
-    ChatCompletion,
-)
-from openai.types.chat import ChatCompletionMessage
-from openai.types.chat_model import ChatModel
-from openai._types import NotGiven, NOT_GIVEN
-from openai.lib._tools import pydantic_function_tool
-
-from jipp.llms.pydantic_to_schema import pydantic_model_to_openai_schema
+from groq import AsyncGroq
+from groq.types.chat import ChatCompletion, ChatCompletionMessage
 from jipp.models.jipp_models import (
     ToolCall,
     Function,
@@ -18,14 +12,18 @@ from jipp.models.jipp_models import (
     LLMError,
     LLMMessage,
     LLMResponse,
+    NotGiven,
+    NOT_GIVEN,
 )
 
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+
+DEFAULT_MODEL = "llama-3.1-8b-instant"
 
 
-async def ask_openai(
+async def ask_groq(
     *,
-    model: Union[str, ChatModel],
+    model: str = DEFAULT_MODEL,
     messages: List[LLMMessage],
     response_format: type[BaseModel] | NotGiven = NOT_GIVEN,
     temperature: Optional[float] | NotGiven = NOT_GIVEN,
@@ -46,11 +44,20 @@ async def ask_openai(
 ) -> LLMResponse:
     try:
 
+        def groq_pydantic_function_tool(tool: BaseModel) -> Dict[str, Any]:
+            return {
+                "type": "function",
+                "function": {
+                    "name": tool.model_json_schema()["title"],
+                    "arguments": json.dumps(tool.model_json_schema()["properties"]),
+                },
+            }
+
         # Convert pydantic models to function tools with openai.lib._tools.pydantic_function_tool
         if tools is not NOT_GIVEN:
             processed_tools = [
                 (
-                    pydantic_function_tool(tool)
+                    groq_pydantic_function_tool(tool)
                     if isinstance(tool, type) and issubclass(tool, BaseModel)
                     else tool
                 )
@@ -59,9 +66,34 @@ async def ask_openai(
         else:
             processed_tools = NOT_GIVEN
 
+        # Handle response_format separately
+        processed_response_format = NOT_GIVEN
+        if response_format is not NOT_GIVEN and issubclass(response_format, BaseModel):
+            # kwargs["response_format"] = pydantic_model_to_openai_schema(response_format)
+            processed_response_format = {
+                "type": "json_object",
+            }
+
+            # hack the system message to include the response_format
+            formatting_prompt = f"You MUST respond only in this JSON Schema:\n{response_format.model_json_schema()}"
+
+            # add response formatting prompt to the system message or...
+            if messages[0].role == "system":
+                messages[0].content = "\n\n".join(
+                    [messages[0].content, formatting_prompt]
+                )
+            else:
+                # ...create a new system message with the formatting prompt
+                system_message = LLMMessage(
+                    role="system",
+                    content=f"{formatting_prompt}",
+                )
+                messages = [system_message] + messages
+
         kwargs = {
             "messages": messages,
             "model": model,
+            "response_format": processed_response_format,
             "temperature": temperature,
             "top_p": top_p,
             "n": n,
@@ -77,22 +109,18 @@ async def ask_openai(
             "timeout": timeout,
         }
 
-        # Handle response_format separately
-        if response_format is not NOT_GIVEN:
-            kwargs["response_format"] = pydantic_model_to_openai_schema(response_format)
-
         # Remove NOT_GIVEN values
         kwargs = {k: v for k, v in kwargs.items() if v is not NOT_GIVEN}
 
-        # Call OpenAI API
+        # Call Groq API
         response = await client.chat.completions.create(**kwargs)
 
         # Convert ChatCompletion response to LLMResponse
         return convert_chat_completion_to_llm_response(response)
 
     except Exception as e:
-        # Convert OpenAI-specific errors to a generic LLMError
-        raise LLMError(f"Error in OpenAI API call: {str(e)}")
+        # Convert Groq-specific errors to a generic LLMError
+        raise LLMError(f"Error in Groq API call: {str(e)}")
 
 
 def convert_to_llm_message(
@@ -125,7 +153,6 @@ def convert_to_llm_message(
 def convert_chat_completion_to_llm_response(
     chat_completion: ChatCompletion,
 ) -> LLMResponse:
-
     choice = chat_completion.choices[0]
     message = convert_to_llm_message(choice.message)
 
