@@ -107,10 +107,9 @@ async def ask_llm(
     kwargs = {k: v for k, v in kwargs.items() if v is not NOT_GIVEN}
 
     try:
-        # get the model profile
-        llm_profile = get_model_profile(model)
-
-        ask_client = llm_profile["client"]
+        # get the model profile and client
+        model_profile = get_model_profile(model)
+        ask_client = model_profile.client
 
         # start or retrieve old conversation
         messages = [m for m in conversation.messages] if conversation else []
@@ -132,7 +131,7 @@ async def ask_llm(
         response = await ask_client(messages=messages, **kwargs)
         print(f"Got response: {response}")
 
-        # handle tool call requests until client stops calling tools
+        # handle tool call requests until LLM stops calling tools
         while response.message.tool_calls:
             tool_calls = response.message.tool_calls
             print(f"Got tool calls: {tool_calls}")

@@ -101,15 +101,18 @@ class Jippity:
         return "Context window cleared"
 
     def list_models(self) -> str:
-        from llm_providers.llm_selector import MODEL_INFO
+        from jipp.llms.llm_selector import MODEL_INFO
+        from jipp.llms.llm_selector import get_model_profile
 
         model_info_str = "Available models and their details:\n\n"
-        for model, info in MODEL_INFO.items():
+        for model in MODEL_INFO.keys():
+            model_profile = get_model_profile(model)
             model_info_str += f"Model: {model}\n"
-            model_info_str += f"  Provider: {info['provider']}\n"
-            model_info_str += f"  Client: {info['client'].__name__}\n"
-            model_info_str += f"  Context Window: {info['context_window']}\n"
-            if "max_output_tokens" in info:
-                model_info_str += f"  Max Output Tokens: {info['max_output_tokens']}\n"
+            model_info_str += f"  Provider: {model_profile.provider}\n"
+            model_info_str += f"  Context Window: {model_profile.context_window}\n"
+            model_info_str += (
+                f"  Max Output Tokens: {model_profile.max_output_tokens}\n"
+            )
+            model_info_str += f"  Features: {', '.join(model_profile.features)}\n"
             model_info_str += "\n"
         return model_info_str
