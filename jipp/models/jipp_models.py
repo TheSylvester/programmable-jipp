@@ -84,13 +84,13 @@ class Tool:
         if asyncio.iscoroutinefunction(self.function):
             # If in an async context, await the function
             if self._is_in_async_context():
-                return self._call_async(*args, **kwargs)
+                return str(self._call_async(*args, **kwargs))
             else:
                 # Run async function in sync context using asyncio.run()
                 return str(asyncio.run(self.function(*args, **kwargs)))
         else:
             # If the function is synchronous, call it and cast to string
-            return self.function(*args, **kwargs)
+            return str(self.function(*args, **kwargs))
 
     async def _call_async(self, *args, **kwargs):
         """
