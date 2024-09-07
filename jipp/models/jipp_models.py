@@ -73,36 +73,32 @@ class Tool:
 
     def __call__(self, *args, **kwargs):
         """
-        Handle both sync and async calls and cast result to string.
+        Handle both sync and async calls.
 
         This method allows the Tool to be called like a function, automatically
         handling both synchronous and asynchronous execution contexts.
 
         Returns:
-            str: The result of the function call, cast to a string.
+            Any: The result of the function call.
         """
         if asyncio.iscoroutinefunction(self.function):
-            # If in an async context, await the function
             if self._is_in_async_context():
-                return str(self._call_async(*args, **kwargs))
+                return self._call_async(*args, **kwargs)
             else:
-                # Run async function in sync context using asyncio.run()
-                return str(asyncio.run(self.function(*args, **kwargs)))
+                return asyncio.run(self.function(*args, **kwargs))
         else:
-            # If the function is synchronous, call it and cast to string
-            return str(self.function(*args, **kwargs))
+            return self.function(*args, **kwargs)
 
     async def _call_async(self, *args, **kwargs):
         """
-        Await the async function if called in an async context and cast to string.
+        Await the async function if called in an async context.
 
         This method is used internally to handle asynchronous function calls.
 
         Returns:
             Any: The result of the asynchronous function call.
         """
-        result = await self.function(*args, **kwargs)
-        return result
+        return await self.function(*args, **kwargs)
 
     def _is_in_async_context(self) -> bool:
         """
@@ -274,5 +270,8 @@ class Conversation(BaseModel, Sequence):
                 if isinstance(message.content, str):
                     return message.content
                 elif isinstance(message.content, list):
-                    return " ".join(item.text for item in message.content if item.text)
+                    # return " ".join(item.text for item in message.content if item.text)
+                    return " ".join(
+                        item.get("text") for item in message.content if item.get("text")
+                    )
         return ""

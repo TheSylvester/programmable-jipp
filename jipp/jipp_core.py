@@ -116,7 +116,7 @@ async def ask_llm(
 
         # system prompt
         if system:
-            messages = add_system_message(system, variables, messages)
+            messages = set_system_message(system, variables, messages)
 
         # user prompt + images
         rendered_user_prompt = render_template(prompt, **variables)
@@ -237,7 +237,7 @@ def convert_tool_dicts(
     return tools_models
 
 
-def add_system_message(
+def set_system_message(
     system: str, variables: dict, messages: List[LLMMessage]
 ) -> List[LLMMessage]:
     """
@@ -251,6 +251,9 @@ def add_system_message(
     Returns:
         List[LLMMessage]: Updated list of messages with the new system message.
     """
+    if system is None or system == "":
+        return messages
+
     system_prompt = render_template(system, **variables)
     system_message = LLMMessage(role="system", content=system_prompt)
 
@@ -386,6 +389,7 @@ async def execute_tool_call(tool_call: ToolCall, tools: List[Tool]) -> str:
                 tool_call.function.arguments
             )
             arguments = validated_args.model_dump()
-            return str(await tool(**arguments))
+            result = await tool(**arguments)
+            return str(result)
 
     raise ValueError(f"Tool {tool_call.function.name} not found")

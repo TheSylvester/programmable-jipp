@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Union, Optional, Dict, List, Any
+from typing import Type, Union, Optional, Dict, List, Any
 from openai import pydantic_function_tool
 from pydantic import BaseModel
 from groq import AsyncGroq
@@ -15,6 +15,7 @@ from jipp.models.jipp_models import (
     NotGiven,
     NOT_GIVEN,
 )
+from jipp.llms.llm_selector import get_model_profile
 
 client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -28,13 +29,14 @@ async def ask_groq(
     response_format: type[BaseModel] | NotGiven = NOT_GIVEN,
     temperature: Optional[float] | NotGiven = NOT_GIVEN,
     top_p: Optional[float] | NotGiven = NOT_GIVEN,
+    top_k: Optional[int] | NotGiven = NOT_GIVEN,
     n: Optional[int] | NotGiven = NOT_GIVEN,
     max_tokens: Optional[int] | NotGiven = NOT_GIVEN,
     stop: Union[Optional[str], List[str]] | NotGiven = NOT_GIVEN,
     presence_penalty: Optional[float] | NotGiven = NOT_GIVEN,
     frequency_penalty: Optional[float] | NotGiven = NOT_GIVEN,
     logit_bias: Optional[Dict[str, int]] | NotGiven = NOT_GIVEN,
-    tools: List[BaseModel] | NotGiven = NOT_GIVEN,
+    tools: List[Type[BaseModel]] | NotGiven = NOT_GIVEN,
     tool_choice: Optional[str] | NotGiven = NOT_GIVEN,
     seed: Optional[int] | NotGiven = NOT_GIVEN,
     user: str | NotGiven = NOT_GIVEN,
@@ -43,8 +45,9 @@ async def ask_groq(
     timeout: float | NotGiven = NOT_GIVEN,
 ) -> LLMResponse:
     try:
+        model_profile = get_model_profile(model)
 
-        def groq_pydantic_function_tool(tool: BaseModel) -> Dict[str, Any]:
+        def groq_pydantic_function_tool(tool: Type[BaseModel]) -> Dict[str, Any]:
             return {
                 "type": "function",
                 "function": {
@@ -53,8 +56,9 @@ async def ask_groq(
                 },
             }
 
-        # Convert pydantic models to function tools with openai.lib._tools.pydantic_function_tool
-        if tools is not NOT_GIVEN:
+        # Process tools only if the model supports it
+        processed_tools = NOT_GIVEN
+        if tools is not NOT_GIVEN and model_profile.tools:
             processed_tools = [
                 (
                     groq_pydantic_function_tool(tool)
@@ -63,32 +67,18 @@ async def ask_groq(
                 )
                 for tool in tools
             ]
-        else:
-            processed_tools = NOT_GIVEN
 
-        # Handle response_format separately
+        # Handle response_format only if the model supports it
         processed_response_format = NOT_GIVEN
-        if response_format is not NOT_GIVEN and issubclass(response_format, BaseModel):
-            # kwargs["response_format"] = pydantic_model_to_openai_schema(response_format)
-            processed_response_format = {
-                "type": "json_object",
-            }
+        if response_format is not NOT_GIVEN and model_profile.response_format:
+            if issubclass(response_format, BaseModel):
+                processed_response_format = {
+                    "type": "json_object",
+                }
 
-            # hack the system message to include the response_format
-            formatting_prompt = f"You MUST respond only in this JSON Schema:\n{response_format.model_json_schema()}"
-
-            # add response formatting prompt to the system message or...
-            if messages[0].role == "system":
-                messages[0].content = "\n\n".join(
-                    [messages[0].content, formatting_prompt]
-                )
-            else:
-                # ...create a new system message with the formatting prompt
-                system_message = LLMMessage(
-                    role="system",
-                    content=f"{formatting_prompt}",
-                )
-                messages = [system_message] + messages
+                # hack the system message to include the response_format
+                formatting_prompt = f"You MUST respond only in this JSON Schema:\n{response_format.model_json_schema()}"
+                messages = add_to_system_prompt(messages, formatting_prompt)
 
         kwargs = {
             "messages": messages,
@@ -96,6 +86,7 @@ async def ask_groq(
             "response_format": processed_response_format,
             "temperature": temperature,
             "top_p": top_p,
+            "top_k": top_k,
             "n": n,
             "max_tokens": max_tokens,
             "stop": stop,
@@ -121,6 +112,31 @@ async def ask_groq(
     except Exception as e:
         # Convert Groq-specific errors to a generic LLMError
         raise LLMError(f"Error in Groq API call: {str(e)}")
+
+
+def add_to_system_prompt(messages, system_prompt):
+    """
+    Set or update the system prompt in the message list.
+
+    This function either updates an existing system message or creates a new one
+    at the beginning of the message list.
+
+    Args:
+        messages (List[LLMMessage]): The list of messages in the conversation.
+        system_prompt (str): The system prompt to be added or appended.
+
+    Returns:
+        List[LLMMessage]: The updated list of messages with the new system prompt.
+    """
+    if messages and messages[0].role == "system":
+        messages[0].content = "\n\n".join([messages[0].content, system_prompt])
+    else:
+        system_message = LLMMessage(
+            role="system",
+            content=system_prompt,
+        )
+        messages = [system_message] + messages
+    return messages
 
 
 def convert_to_llm_message(

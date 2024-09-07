@@ -1,14 +1,14 @@
-from .openai_client import ask_openai
-from .groq_client import ask_groq
-from .anthropic_client import ask_claude
+# from .openai_client import ask_openai
+# from .groq_client import ask_groq
+# from .anthropic_client import ask_claude
 
 
-from typing import Callable, List, Literal
+from typing import Callable, List
 
-PROVIDER_MAP = {
-    "openai": ask_openai,
-    "anthropic": ask_claude,
-    "groq": ask_groq,
+MODEL_ALIASES = {
+    "claude-sonnet": "claude-3-5-sonnet-20240620",
+    "claude-haiku": "claude-3-haiku-20240307",
+    # Add more aliases as needed
 }
 
 MODEL_INFO = {
@@ -89,11 +89,31 @@ class ModelProfile:
 
     @property
     def client(self) -> Callable:
-        return PROVIDER_MAP[self.provider]
+        provider_name = self.provider
+        if provider_name is None:
+            raise ValueError(f"Unknown provider: {provider_name}")
+        if provider_name is "openai":
+            from .openai_client import ask_openai
+
+            return ask_openai
+        elif provider_name is "anthropic":
+            from .anthropic_client import ask_claude
+
+            return ask_claude
+        elif provider_name is "groq":
+            from .groq_client import ask_groq
+
+            return ask_groq
+
+
+def resolve_model_alias(model: str) -> str:
+    """Resolve a model alias to its full name."""
+    return MODEL_ALIASES.get(model, model)
 
 
 def get_model_context_window(model: str) -> int:
     """Get the context window size for a given model."""
+    model = resolve_model_alias(model)
     if model in MODEL_INFO:
         return MODEL_INFO[model]["context_window"]
     else:
@@ -102,12 +122,13 @@ def get_model_context_window(model: str) -> int:
 
 def is_model_supported(model: str) -> bool:
     """Check if a model is supported."""
+    model = resolve_model_alias(model)
     return model in MODEL_INFO
 
 
 def get_max_tokens(model: str) -> int:
-    model_lower = model.lower()
-    model_info = MODEL_INFO.get(model_lower)
+    model = resolve_model_alias(model.lower())
+    model_info = MODEL_INFO.get(model)
 
     if not model_info:
         raise ValueError(f"No information found for model: {model}")
@@ -116,8 +137,8 @@ def get_max_tokens(model: str) -> int:
 
 
 def get_model_profile(model: str) -> ModelProfile:
-    model_lower = model.lower()
-    model_info = MODEL_INFO.get(model_lower)
+    model = resolve_model_alias(model.lower())
+    model_info = MODEL_INFO.get(model)
 
     if not model_info:
         raise ValueError(f"Model {model} is not supported")
