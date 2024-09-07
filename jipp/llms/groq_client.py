@@ -58,7 +58,7 @@ async def ask_groq(
 
         # Process tools only if the model supports it
         processed_tools = NOT_GIVEN
-        if tools is not NOT_GIVEN and model_profile.tools:
+        if tools is not NOT_GIVEN and model_profile.has_feature("tools"):
             processed_tools = [
                 (
                     groq_pydantic_function_tool(tool)
@@ -70,7 +70,9 @@ async def ask_groq(
 
         # Handle response_format only if the model supports it
         processed_response_format = NOT_GIVEN
-        if response_format is not NOT_GIVEN and model_profile.response_format:
+        if response_format is not NOT_GIVEN and model_profile.has_feature(
+            "response_format"
+        ):
             if issubclass(response_format, BaseModel):
                 processed_response_format = {
                     "type": "json_object",

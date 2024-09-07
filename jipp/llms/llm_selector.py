@@ -2,6 +2,17 @@
 # from .groq_client import ask_groq
 # from .anthropic_client import ask_claude
 
+MODEL_ALIASES = {
+    "claude-sonnet": "claude-3-5-sonnet-20240620",
+    "claude-haiku": "claude-3-haiku-20240307",
+    "gpt-4": "gpt-4o-mini",
+    "gpt-4-mini": "gpt-4o-mini",
+    "llama-tool-large": "llama3-groq-70b-8192-tool-use-preview",
+    "llama-tool-small": "llama3-groq-8b-8192-tool-use-preview",
+    "llama-large": "llama-3.1-70b-versatile",
+    "llama-small": "llama-3.1-8b-instant",
+    "mixtral": "mixtral-8x7b-32768",
+}
 
 from typing import Callable, List
 
@@ -78,8 +89,8 @@ class ModelProfile:
         )
         self.features = model_info["features"]
 
-    def __getattr__(self, item):
-        return item in self.features
+    # def __getattr__(self, item):
+    #     return item in self.features
 
     def __str__(self) -> str:
         return ", ".join(self.features)
@@ -87,20 +98,23 @@ class ModelProfile:
     def __repr__(self) -> str:
         return self.__str__()
 
+    def has_feature(self, item: str) -> bool:
+        return item in self.features
+
     @property
     def client(self) -> Callable:
         provider_name = self.provider
         if provider_name is None:
             raise ValueError(f"Unknown provider: {provider_name}")
-        if provider_name is "openai":
+        if provider_name == "openai":
             from .openai_client import ask_openai
 
             return ask_openai
-        elif provider_name is "anthropic":
+        elif provider_name == "anthropic":
             from .anthropic_client import ask_claude
 
             return ask_claude
-        elif provider_name is "groq":
+        elif provider_name == "groq":
             from .groq_client import ask_groq
 
             return ask_groq

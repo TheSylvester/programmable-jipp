@@ -82,7 +82,7 @@ async def ask_claude(
             "timeout": timeout,
         }
 
-        if tools is not NOT_GIVEN and model_profile.tools:
+        if tools is not NOT_GIVEN and model_profile.has_feature("tools"):
             kwargs["tools"] = [
                 pydantic_to_anthropic_function_tool(tool) for tool in tools
             ]
