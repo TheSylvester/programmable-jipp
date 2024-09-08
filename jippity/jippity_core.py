@@ -19,16 +19,21 @@ class Jippity:
         self.system_prompt = system_prompt
         self.model = model
 
-    async def handle_message(
+    async def chat_response(
         self, message: nextcord.Message, send_response: Callable[[str], Any]
     ):
-        response = await self.get_response(message.content)
-        await send_response(response)
+        """Continues LLM chat with text contents from a nextcord Message, directly uses the send_response fn to reply"""
+        response = await self.chat(message.content)
+        response_text: str = str(response)
+        print(f"Conversation in chat_response: ", response.model_dump_json(indent=2))
+        await send_response(str(response_text))
+        return response
 
-    async def get_response(self, prompt) -> str:
+    async def chat(self, message: str) -> Conversation:
+        """Continues the conversation"""
         response = await ask_llm(
             model=self.model,
-            prompt=prompt,
+            prompt=str(message),
             system=self.system_prompt,
             conversation=self.conversation,
         )
@@ -65,33 +70,33 @@ class Jippity:
             model_info_str += "\n"
         return model_info_str
 
-    async def stop_a_task(self, prompt):
-        task_manager = self.bot.get_cog("TaskManager")
-        tools = [{"function": task_manager.stop_task, "schema": StopTask}]
+    # async def stop_a_task(self, prompt):
+    #     task_manager = self.bot.get_cog("TaskManager")
+    #     tools = [{"function": task_manager.stop_task, "schema": StopTask}]
 
-        response = await ask_llm(
-            model=self.model,
-            prompt=prompt,
-            system=self.system_prompt,
-            conversation=self.conversation,
-            tools=tools,
-        )
-        self.conversation = response
-        return response
+    #     response = await ask_llm(
+    #         model=self.model,
+    #         prompt=prompt,
+    #         system=self.system_prompt,
+    #         conversation=self.conversation,
+    #         tools=tools,
+    #     )
+    #     self.conversation = response
+    #     return response
 
-    async def list_tasks(self, prompt):
-        task_manager = self.bot.get_cog("TaskManager")
-        tools = [{"function": task_manager.list_tasks, "schema": ListTasks}]
+    # async def list_tasks(self, prompt):
+    #     task_manager = self.bot.get_cog("TaskManager")
+    #     tools = [{"function": task_manager.list_tasks, "schema": ListTasks}]
 
-        response = await ask_llm(
-            model=self.model,
-            prompt=prompt,
-            system=self.system_prompt,
-            conversation=self.conversation,
-            tools=tools,
-        )
-        self.conversation = response
-        return response
+    #     response = await ask_llm(
+    #         model=self.model,
+    #         prompt=prompt,
+    #         system=self.system_prompt,
+    #         conversation=self.conversation,
+    #         tools=tools,
+    #     )
+    #     self.conversation = response
+    #     return response
 
     async def ask_llm_with_tools(self, model: str, prompt: str, tools: list):
         response = await ask_llm(

@@ -47,29 +47,25 @@ class JippityBot(commands.Cog):
     async def respond_to_mention(
         self, message: Message, reply_function: Callable[[str], Any]
     ):
-        await reply_function(f"Hello {message.author.display_name}!")
+        """Responds to @mentions
+        Generates basic completion"""
+        await self.jippity.chat_response(message, reply_function)
 
     @commands.Cog.listener()
     async def on_message(self, message: Message):
         if message.author == self.bot.user:
             return
 
+        async def respond_fn(response):
+            return await send_chunked_message(message.channel.send, response)
+
         for route in self.routes:
             if route.condition(message):
                 await route.function(
                     message,
-                    lambda response: send_chunked_message(
-                        message.channel.send, response
-                    ),
+                    respond_fn,
                 )
                 return
-
-        # await self.jippity.handle_message(
-        #     context=message,
-        #     send_response=lambda response: send_chunked_message(
-        #         message.channel.send, response
-        #     ),
-        # )
 
     def add_route(self, route: Route):
         self.routes.append(route)
@@ -106,7 +102,7 @@ class JippityBot(commands.Cog):
             task_manager.create_task(
                 task_name=task_name,
                 interval=interval,
-                function=lambda _: self.jippity.get_response(prompt),
+                function=lambda _: self.jippity.chat(prompt),
             )
 
         tools = [{"function": create_task, "schema": CreateTask}]
