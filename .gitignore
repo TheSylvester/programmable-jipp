@@ -12,6 +12,9 @@ ENV/
 *.db
 *.sqlite3
 
+# package
+*.egg-info/
+
 # IDEs
 .vscode/
 .idea/
@@ -25,6 +28,10 @@ ENV/
 .ipynb_checkpoints
 _notebook.py
 
-
+# SDK Docs
 docs/_sdk_docs/
 *sdk*.txt
+
+# logs
+*.log
+

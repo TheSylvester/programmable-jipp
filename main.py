@@ -3,13 +3,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from dotenv import load_dotenv
 import os
-from base_bot import bot
+from nextcord_bot import NextcordBot
 
 # Load environment variables
 load_dotenv()
 
 # Get Discord token from environment variables
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+
+# Initialize the NextcordBot
+bot = NextcordBot()
 
 
 @asynccontextmanager
@@ -31,7 +34,9 @@ app = FastAPI(lifespan=lifespan)
 async def read_root():
     return {
         "status": "Application is running",
-        "discord_bot": f"Connected as {bot.user}" if bot.user else "Not connected",
+        "discord_bot": (
+            f"Connected as {bot.user}" if bot.is_ready() else "Not connected"
+        ),
     }
 
 
