@@ -4,7 +4,7 @@ import nextcord
 from jipp import ask_llm, is_model_supported, Conversation
 from jipp.llms.llm_selector import MODEL_INFO
 from jipp.llms.llm_selector import get_model_profile
-from task_manager import StopTaskParams, ListTasksParams, CreateTaskParams
+from task_manager import StopTask, ListTasks, CreateTask
 
 
 DEFAULT_MODEL = "llama-3.1-8b-instant"
@@ -24,30 +24,6 @@ class Jippity:
     ):
         response = await self.get_response(message.content)
         await send_response(response)
-
-    async def create_a_task(self, prompt):
-        task_manager = self.bot.get_cog("TaskManager")
-
-        def create_task(task_name: str, interval: int, prompt: str):
-            task_manager.create_task(
-                task_name=task_name,
-                interval=interval,
-                function=lambda _: ask_llm(
-                    model=self.model, prompt=prompt, system=self.system_prompt
-                ),
-            )
-
-        tools = [{"function": create_task, "schema": CreateTaskParams}]
-
-        response = await ask_llm(
-            model="llama3-groq-8b-8192-tool-use-preview",
-            prompt=prompt,
-            system=self.system_prompt,
-            conversation=self.conversation,
-            tools=tools,
-        )
-        self.conversation = response
-        return response
 
     async def get_response(self, prompt) -> str:
         response = await ask_llm(
@@ -91,7 +67,7 @@ class Jippity:
 
     async def stop_a_task(self, prompt):
         task_manager = self.bot.get_cog("TaskManager")
-        tools = [{"function": task_manager.stop_task, "schema": StopTaskParams}]
+        tools = [{"function": task_manager.stop_task, "schema": StopTask}]
 
         response = await ask_llm(
             model=self.model,
@@ -105,10 +81,21 @@ class Jippity:
 
     async def list_tasks(self, prompt):
         task_manager = self.bot.get_cog("TaskManager")
-        tools = [{"function": task_manager.list_tasks, "schema": ListTasksParams}]
+        tools = [{"function": task_manager.list_tasks, "schema": ListTasks}]
 
         response = await ask_llm(
             model=self.model,
+            prompt=prompt,
+            system=self.system_prompt,
+            conversation=self.conversation,
+            tools=tools,
+        )
+        self.conversation = response
+        return response
+
+    async def ask_llm_with_tools(self, model: str, prompt: str, tools: list):
+        response = await ask_llm(
+            model=model,
             prompt=prompt,
             system=self.system_prompt,
             conversation=self.conversation,
