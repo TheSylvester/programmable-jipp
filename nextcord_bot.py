@@ -49,8 +49,8 @@ class NextcordBot(commands.Bot):
         intents = setup_intents()
         setup_nextcord_logger()
         super().__init__(command_prefix=COMMAND_PREFIX, intents=intents)
+        self.load_extension("tool_manager")
         self.load_extension("jippity_bot")
-        self.load_extension("task_manager")
 
     async def on_ready(self):
         print(f"We have logged in as {self.user}")

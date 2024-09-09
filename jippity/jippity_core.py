@@ -44,7 +44,7 @@ class Jippity:
         self.system_prompt = new_prompt
         return f"System prompt updated to: {new_prompt}"
 
-    def update_model(self, new_model: str) -> str:
+    def update_model(self, new_model: str = None) -> str:
         if not new_model:
             return "Current model: " + self.model
         if not is_model_supported(new_model):
@@ -70,34 +70,6 @@ class Jippity:
             model_info_str += "\n"
         return model_info_str
 
-    # async def stop_a_task(self, prompt):
-    #     task_manager = self.bot.get_cog("TaskManager")
-    #     tools = [{"function": task_manager.stop_task, "schema": StopTask}]
-
-    #     response = await ask_llm(
-    #         model=self.model,
-    #         prompt=prompt,
-    #         system=self.system_prompt,
-    #         conversation=self.conversation,
-    #         tools=tools,
-    #     )
-    #     self.conversation = response
-    #     return response
-
-    # async def list_tasks(self, prompt):
-    #     task_manager = self.bot.get_cog("TaskManager")
-    #     tools = [{"function": task_manager.list_tasks, "schema": ListTasks}]
-
-    #     response = await ask_llm(
-    #         model=self.model,
-    #         prompt=prompt,
-    #         system=self.system_prompt,
-    #         conversation=self.conversation,
-    #         tools=tools,
-    #     )
-    #     self.conversation = response
-    #     return response
-
     async def ask_llm_with_tools(self, model: str, prompt: str, tools: list):
         response = await ask_llm(
             model=model,
@@ -105,6 +77,7 @@ class Jippity:
             system=self.system_prompt,
             conversation=self.conversation,
             tools=tools,
+            tool_choice="auto",
         )
         self.conversation = response
         return response

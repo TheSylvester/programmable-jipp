@@ -6,6 +6,7 @@ from nextcord.ext import commands
 from jippity.jippity_core import Jippity
 from message_chunker import send_chunked_message
 from task_manager import CreateTask
+from tool_manager import ToolManager
 
 
 @dataclass
@@ -29,6 +30,7 @@ class JippityBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.jippity = Jippity()
+        self.tool_manager: ToolManager = self.bot.get_cog("ToolManager")
         self.routes: List[Route] = []
         self.custom_commands: List[Command] = []
 
@@ -93,26 +95,6 @@ class JippityBot(commands.Cog):
             await command.function(ctx, *args, **kwargs)
 
         self.bot.add_command(dynamic_command)
-
-    @commands.command(name="task", brief="Set a repeating task")
-    async def create_task(self, ctx, *, prompt: str):
-        task_manager = self.bot.get_cog("TaskManager")
-
-        def create_task(task_name: str, interval: int, prompt: str):
-            task_manager.create_task(
-                task_name=task_name,
-                interval=interval,
-                function=lambda _: self.jippity.chat(prompt),
-            )
-
-        tools = [{"function": create_task, "schema": CreateTask}]
-
-        response = await self.jippity.ask_llm_with_tools(
-            model="llama3-groq-8b-8192-tool-use-preview",
-            prompt=prompt,
-            tools=tools,
-        )
-        await send_chunked_message(ctx.send, response)
 
     @commands.command(name="system", brief="Update the system prompt")
     # @commands.has_permissions(administrator=True)

@@ -1,7 +1,12 @@
-from typing import Any, Callable
+import asyncio
+from typing import Any, Callable, Coroutine
 from nextcord.ext import tasks, commands
 from pydantic import BaseModel, Field
 
+from utils.logging_utils import setup_logger
+
+
+log = setup_logger()
 
 # Schemas for Function Calling
 
@@ -44,10 +49,12 @@ class TaskManager(commands.Cog):
         self.bot = bot
         self.jobs = {}  # Store dynamically created jobs
 
-    def create_task(self, task_name: str, interval: int, function, *args):
+    async def create_task(
+        self, task_name: str, interval: int, function: Callable[..., Any], **kwargs: Any
+    ) -> str:
         """Creates a task with the given interval and function."""
-        print(
-            f"Creating task: task_name={task_name}, interval={interval}, function={function}, args={args}"
+        log.debug(
+            f"Creating task: task_name={task_name}, interval={interval}, function={function}, kwargs={kwargs}"
         )
         if task_name in self.jobs:
             return f"Task '{task_name}' already exists."
@@ -55,13 +62,28 @@ class TaskManager(commands.Cog):
         # Define the task as a loop that runs at the specified interval
         @tasks.loop(minutes=interval)
         async def dynamic_task():
-            await function(*args)  # Call the task function with the provided arguments
+            # Check if the function is a coroutine (async) or not
+            if asyncio.iscoroutinefunction(function):
+                # If it's async, use await
+                await function(**kwargs)
+            else:
+                # If it's not async, run it in an executor
+                await self.bot.loop.run_in_executor(None, function, **kwargs)
 
-        dynamic_task.start()  # Start the task loop
+        # Start the task
+        dynamic_task.start()
 
         # Store the task in the jobs dictionary
         self.jobs[task_name] = dynamic_task
-        return f"Task '{task_name}' created and started with an interval of {interval} minutes."
+        return f"Task '{task_name}' created and scheduled to start with an interval of {interval} minutes."
+
+    def create_task_sync(
+        self, task_name: str, interval: int, function: Callable[..., Any], **kwargs: Any
+    ) -> str:
+        """Synchronous wrapper for create_task."""
+        return asyncio.run_coroutine_threadsafe(
+            self.create_task(task_name, interval, function, **kwargs), self.bot.loop
+        ).result()
 
     def stop_task(self, task_name: str):
         """Stops a task by name."""

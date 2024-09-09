@@ -1,8 +1,7 @@
 import asyncio
 from collections.abc import Sequence
-from typing import Type
+from typing import Type, Callable, Any
 from typing_extensions import (
-    Callable,
     List,
     Optional,
     Required,
@@ -71,45 +70,28 @@ class Tool:
         self.schema: Type[BaseModel] = schema
         self.function: Callable = function
 
-    def __call__(self, *args, **kwargs):
-        """
-        Handle both sync and async calls.
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        if self._is_in_async_context():
+            return self._async_wrapper(*args, **kwargs)
+        else:
+            return self._sync_wrapper(*args, **kwargs)
 
-        This method allows the Tool to be called like a function, automatically
-        handling both synchronous and asynchronous execution contexts.
-
-        Returns:
-            Any: The result of the function call.
-        """
+    async def _async_wrapper(self, *args: Any, **kwargs: Any) -> Any:
         if asyncio.iscoroutinefunction(self.function):
-            if self._is_in_async_context():
-                return self._call_async(*args, **kwargs)
-            else:
-                return asyncio.run(self.function(*args, **kwargs))
+            return await self.function(*args, **kwargs)
+        else:
+            return await asyncio.to_thread(self.function, *args, **kwargs)
+
+    def _sync_wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        if asyncio.iscoroutinefunction(self.function):
+            return asyncio.run(self.function(*args, **kwargs))
         else:
             return self.function(*args, **kwargs)
 
-    async def _call_async(self, *args, **kwargs):
-        """
-        Await the async function if called in an async context.
-
-        This method is used internally to handle asynchronous function calls.
-
-        Returns:
-            Any: The result of the asynchronous function call.
-        """
-        return await self.function(*args, **kwargs)
-
     def _is_in_async_context(self) -> bool:
-        """
-        Helper to check if we're in an async context.
-
-        Returns:
-            bool: True if in an async context, False otherwise.
-        """
         try:
-            asyncio.get_running_loop()
-            return True
+            loop = asyncio.get_running_loop()
+            return loop.is_running()
         except RuntimeError:
             return False
 

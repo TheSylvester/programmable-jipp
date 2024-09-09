@@ -1,5 +1,6 @@
 import base64
 import io
+import logging
 from PIL import Image
 from jinja2 import Template
 from jipp.llms.llm_selector import get_model_profile
@@ -383,13 +384,17 @@ async def execute_tool_call(tool_call: ToolCall, tools: List[Tool]) -> str:
     Raises:
         ValueError: If the requested tool is not found.
     """
+    logging.debug(tool_call)
     for tool in tools:
+        logging.debug(tool)
         if tool.schema.__name__ == tool_call.function.name:
             validated_args = tool.schema.model_validate_json(
                 tool_call.function.arguments
             )
             arguments = validated_args.model_dump()
+
+            logging.debug(arguments)
             result = await tool(**arguments)
-            return str(result)
+            return result
 
     raise ValueError(f"Tool {tool_call.function.name} not found")
