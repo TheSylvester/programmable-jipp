@@ -1,6 +1,10 @@
 import re
 from typing import Callable, Any
 
+from utils.logging_utils import setup_logger
+
+log = setup_logger()
+
 
 async def send_chunked_message(send_function: Callable[[str], Any], response: str):
     """
@@ -11,6 +15,11 @@ async def send_chunked_message(send_function: Callable[[str], Any], response: st
         send_function (Callable[[str], Any]): The function to call to send the response.
         response (str): The response to send.
     """
+
+    if not response:
+        log.warning("send_chunked_message tried to send an empty message")
+        await send_function("_..._")
+
     max_length = 2000
 
     if len(response) <= max_length:

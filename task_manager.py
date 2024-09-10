@@ -83,11 +83,11 @@ class TaskManager(commands.Cog):
     @commands.command(name="stop_task", brief="Stops a recurring task")
     async def stop_task(self, ctx, *, task_name: str):
         if not task_name:
-            await ctx.send(f"No task name provided to stop.")
+            await send_chunked_message(ctx.send, f"No task name provided to stop.")
             return
         try:
             result = await self._stop_task(task_name=task_name)
-            await ctx.send(result)
+            await send_chunked_message(ctx.send, result)
             return
         except Exception as e:
             log.error(f"SmartTaskManager stop_task error: {e}")
