@@ -70,7 +70,7 @@ async def execute_prompt_at_context(ctx, prompt):
     To execute at Task Trigger time.
     """
 
-    response = await ask_llm(model=DEFAULT_TOOL_MODEL, prompt=prompt)
+    response = await ask_llm(model=DEFAULT_TOOL_MODEL, prompt=prompt, temperature=0.3)
     await ctx.send(response)
 
 
@@ -106,16 +106,19 @@ class SmartTaskManager(commands.Cog):
             )
 
         # This is the function to run at task time - a wrapped ask_llm call
-        execute_prompt = partial(execute_prompt_at_context, ctx)
-
-        test_response = await execute_prompt(
-            "Tell me this is a DEBUG message, then Tell me something about yourself (tell me I asked you to do that)"
-        )
-        log.debug(test_response)
+        async def execute_prompt(prompt):
+            return await execute_prompt_at_context(ctx, prompt)
 
         # Turn creating a task that executes a prompt into a tool function
-        create_task = partial(self.task_manager.create_task, function=execute_prompt)
-        create_task_tool = Tool(schema=CreateTask, function=create_task)
+        async def create_task_fn(task_name: str, interval: int, prompt: str):
+            return await self.task_manager.create_task(
+                task_name=task_name,
+                interval=interval,
+                function=execute_prompt,
+                prompt=prompt,
+            )
+
+        create_task_tool = Tool(schema=CreateTask, function=create_task_fn)
 
         try:
             # ask_llm to use CreateTask, so this will generate llm_task_name, llm_interval, llm_prompt
