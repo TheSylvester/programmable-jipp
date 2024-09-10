@@ -70,7 +70,12 @@ async def execute_prompt_at_context(ctx, prompt):
     To execute at Task Trigger time.
     """
 
-    response = await ask_llm(model=DEFAULT_TOOL_MODEL, prompt=prompt, temperature=0.3)
+    response = await ask_llm(
+        system="You are a helpful discord bot with access to all necessary intents in Discord. You are about to execute a saved prompt from memory to the best of your ability as scheduled. You only have to handle the prompt as normal.",
+        model=DEFAULT_TOOL_MODEL,
+        prompt=prompt,
+        temperature=0.3,
+    )
     await ctx.send(response)
 
 

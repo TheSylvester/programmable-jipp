@@ -51,6 +51,7 @@ class TaskManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.jobs = {}  # Store dynamically created jobs
+        self.jobs_metadata = {}  # Store jobs creation args
 
     def create_task(
         self, task_name: str, interval: int, function: Callable[..., Any], **kwargs: Any
@@ -78,6 +79,14 @@ class TaskManager(commands.Cog):
 
         # Store the task in the jobs dictionary
         self.jobs[task_name] = dynamic_task
+        # Store the args metadata
+        self.jobs_metadata[task_name] = {
+            "task_name": task_name,
+            "interval": interval,
+            "function_name": function.__name__,
+            **kwargs,
+        }
+
         return f"Task '{task_name}' created and scheduled to start with an interval of {interval} minutes."
 
     @commands.command(name="stop_task", brief="Stops a recurring task")
@@ -99,9 +108,37 @@ class TaskManager(commands.Cog):
     async def list_tasks(self, ctx):
         try:
             tasks = self._list_tasks()
-            await send_chunked_message(ctx.send, "\n".join(tasks))
+            if not tasks:
+                await ctx.send("No active tasks.")
+                return
+
+            output_strings = []
+            for task in tasks:
+                next_iteration = (
+                    task["job"].next_iteration.strftime("%Y-%m-%d %H:%M:%S")
+                    if task["job"].next_iteration
+                    else "N/A"
+                )
+
+                # Prepare args string without 'job' and 'task_name'
+                args_str = "\n".join(
+                    f"{k}: {v}"
+                    for k, v in task.items()
+                    if k not in ["job", "task_name", "interval"]
+                )
+
+                output_strings.append(
+                    f"- Task: {task['task_name']}\n"
+                    f"  Interval: {task['interval']} minutes\n"
+                    f"  Next run: {next_iteration}\n"
+                    f"  {args_str}"
+                )
+
+            await send_chunked_message(
+                ctx.send, "Active tasks:\n" + "\n\n".join(output_strings)
+            )
         except Exception as e:
-            log.error(f"SmartTaskManager list_tasks error: {e}")
+            log.error(f"TaskManager list_tasks error: {e}")
             await send_chunked_message(ctx.send, f"Failed to list tasks: {str(e)}")
 
     async def _stop_task(self, task_name: str):
@@ -130,8 +167,13 @@ class TaskManager(commands.Cog):
 
     def _list_tasks(self):
         """Returns a list of currently running tasks."""
-        print("Listing tasks")
-        return [name for name in self.jobs.items()]
+        listed_tasks = []
+
+        for job_name, job in self.jobs.items():
+            le_job = {**self.jobs_metadata[job_name], "job": job}
+            listed_tasks.append(le_job)
+
+        return listed_tasks
 
     def export_tools(self) -> list[Tool]:
         """Returns a list of Tools to be imported"""
