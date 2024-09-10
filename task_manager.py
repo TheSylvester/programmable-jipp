@@ -89,7 +89,9 @@ class TaskManager(commands.Cog):
 
         return f"Task '{task_name}' created and scheduled to start with an interval of {interval} minutes."
 
-    @commands.command(name="stop_task", brief="Stops a recurring task")
+    @commands.command(
+        name="stop_task", aliases=["stop", "stop_tasks"], brief="Stops a recurring task"
+    )
     async def stop_task(self, ctx, *, task_name: str):
         if not task_name:
             await send_chunked_message(ctx.send, f"No task name provided to stop.")

@@ -123,15 +123,22 @@ class JippityBot(commands.Cog):
     @commands.command(
         name="commands",
         aliases=["list_commands", "list"],
-        brief="List available commands",
+        brief="List available commands (!list) / tasks (!list tasks)",
     )
-    async def list_commands(self, ctx):
-        command_list = [command.name for command in self.bot.commands] + [
-            command.name for command in self.custom_commands
-        ]
-        await send_chunked_message(
-            ctx.send, f"Available commands: {', '.join(command_list)}"
-        )
+    async def list_commands(self, ctx, arg=""):
+
+        if "task" in arg:
+            task_manager = self.bot.get_cog("TaskManager")
+            await task_manager.list_tasks(ctx)
+
+        if not arg:
+            command_list = [command.name for command in self.bot.commands] + [
+                command.name for command in self.custom_commands
+            ]
+            await send_chunked_message(
+                ctx.send, f"Available commands: {', '.join(command_list)}"
+            )
+            return
 
 
 def setup(bot):
