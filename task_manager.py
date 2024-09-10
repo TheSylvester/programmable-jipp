@@ -1,8 +1,11 @@
 import asyncio
+import json
 from typing import Any, Callable, Coroutine
 from nextcord.ext import tasks, commands
 from pydantic import BaseModel, Field
 
+from jipp.models.jipp_models import Tool
+from message_chunker import send_chunked_message
 from utils.logging_utils import setup_logger
 
 
@@ -49,7 +52,7 @@ class TaskManager(commands.Cog):
         self.bot = bot
         self.jobs = {}  # Store dynamically created jobs
 
-    async def create_task(
+    def create_task(
         self, task_name: str, interval: int, function: Callable[..., Any], **kwargs: Any
     ) -> str:
         """Creates a task with the given interval and function."""
@@ -77,28 +80,68 @@ class TaskManager(commands.Cog):
         self.jobs[task_name] = dynamic_task
         return f"Task '{task_name}' created and scheduled to start with an interval of {interval} minutes."
 
-    def create_task_sync(
-        self, task_name: str, interval: int, function: Callable[..., Any], **kwargs: Any
-    ) -> str:
-        """Synchronous wrapper for create_task."""
-        return asyncio.run_coroutine_threadsafe(
-            self.create_task(task_name, interval, function, **kwargs), self.bot.loop
-        ).result()
+    @commands.command(name="stop_task", brief="Stops a recurring task")
+    async def stop_task(self, ctx, *, task_name: str):
+        if not task_name:
+            await ctx.send(f"No task name provided to stop.")
+            return
+        try:
+            result = await self._stop_task(task_name=task_name)
+            await ctx.send(result)
+            return
+        except Exception as e:
+            log.error(f"SmartTaskManager stop_task error: {e}")
+            await send_chunked_message(
+                ctx.send, f"Failed to stop task '{task_name}': {str(e)}"
+            )
 
-    def stop_task(self, task_name: str):
+    @commands.command(name="list_tasks", brief="Lists all active recurring tasks")
+    async def list_tasks(self, ctx):
+        try:
+            tasks = self._list_tasks()
+            await send_chunked_message(ctx.send, "\n".join(tasks))
+        except Exception as e:
+            log.error(f"SmartTaskManager list_tasks error: {e}")
+            await send_chunked_message(ctx.send, f"Failed to list tasks: {str(e)}")
+
+    async def _stop_task(self, task_name: str):
         """Stops a task by name."""
-        print(f"Stopping task: task_name={task_name}")
+        log.info(f"Stopping task: task_name={task_name}")
+
         if task_name in self.jobs:
-            self.jobs[task_name].cancel()  # Stop the task loop
+            task = self.jobs[task_name]
+
+            # Cancel the task (this stops the loop)
+            task.cancel()
+
+            try:
+                # Handle the task cancellation gracefully
+                await task._task  # This awaits the internal task if needed
+            except asyncio.CancelledError:
+                log.info(f"Task '{task_name}' was cancelled successfully.")
+            except Exception as e:
+                log.error(f"Error while stopping task '{task_name}': {e}")
+
+            # Remove the task from the jobs list
             del self.jobs[task_name]
             return f"Task '{task_name}' stopped and removed."
         else:
             return f"Task '{task_name}' does not exist."
 
-    def list_tasks(self):
+    def _list_tasks(self):
         """Returns a list of currently running tasks."""
         print("Listing tasks")
-        return [name for name in self.jobs]
+        return [name for name in self.jobs.items()]
+
+    def export_tools(self) -> list[Tool]:
+        """Returns a list of Tools to be imported"""
+
+        tools = [
+            Tool(schema=StopTask, function=self.stop_task),
+            Tool(schema=ListTasks, function=self.list_tasks),
+        ]
+
+        return tools
 
 
 def setup(bot):

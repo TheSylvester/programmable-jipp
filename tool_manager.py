@@ -30,10 +30,9 @@ class ToolManager(commands.Cog):
         self.smart_task_manager: SmartTaskManager = (
             bot.get_cog("SmartTaskManager") or self.load_smart_task_manager()
         )
+        smart_task_manager_tools = self.smart_task_manager.export_tools()
 
-        smart_manager_tools = self.smart_task_manager.export_tools()
-
-        self.register_tools(smart_manager_tools)
+        self.register_tools(smart_task_manager_tools)
 
     def get_tool(self, tool_name: str):
         """Retrieve a tool by name."""

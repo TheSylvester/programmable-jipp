@@ -111,7 +111,7 @@ class SmartTaskManager(commands.Cog):
 
         # Turn creating a task that executes a prompt into a tool function
         async def create_task_fn(task_name: str, interval: int, prompt: str):
-            return await self.task_manager.create_task(
+            return self.task_manager.create_task(
                 task_name=task_name,
                 interval=interval,
                 function=execute_prompt,
@@ -137,33 +137,13 @@ class SmartTaskManager(commands.Cog):
 
         await send_chunked_message(ctx.send, response)
 
-    @commands.command(name="stop_task", brief="Stops a recurring task")
-    async def stop_task(self, ctx, *, task_name: str):
-        try:
-            result = await self.task_manager.stop_task(task_name=task_name)
-            return result
-        except Exception as e:
-            logging.error(f"SmartTaskManager stop_task error: {e}")
-            await send_chunked_message(
-                ctx.send, f"Failed to stop task '{task_name}': {str(e)}"
-            )
-
-    @commands.command(name="list_tasks", brief="Lists all active recurring tasks")
-    async def list_tasks(self, ctx):
-        try:
-            tasks = await self.task_manager.list_tasks()
-            await send_chunked_message(ctx.send, "\n".join(json.dumps(tasks, indent=2)))
-        except Exception as e:
-            logging.error(f"SmartTaskManager list_tasks error: {e}")
-            await send_chunked_message(ctx.send, f"Failed to list tasks: {str(e)}")
-
     def export_tools(self) -> list[Tool]:
-        """Returns a list of Tools to be imported"""
+        """Returns a list of Tools to be imported, including the ones from task manager"""
 
-        tools = [
+        task_manager_tools = self.task_manager.export_tools()
+
+        tools = task_manager_tools + [
             Tool(schema=SmartCreateTask, function=self.create_task),
-            Tool(schema=StopTask, function=self.stop_task),
-            Tool(schema=ListTasks, function=self.list_tasks),
         ]
 
         return tools
