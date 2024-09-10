@@ -37,10 +37,19 @@ def setup_nextcord_logger():
 
 
 def setup_intents():
+    """Grants perms to nextcord bot"""
     intents = nextcord.Intents.default()
-    intents.message_content = True
-    intents.guilds = True
-    intents.messages = True
+    intents.message_content = True  # Handle message content
+    intents.guilds = True  # Access to guild events (joining/leaving)
+    intents.messages = True  # Read messages in guild channels
+    intents.members = True  # Access to member-related events (@mentions)
+    intents.reactions = True  # Track message reactions
+    intents.typing = True  # Handle typing events
+    intents.dm_messages = True  # Allow direct messages to bot
+
+    # priviledged
+    intents.presences = True
+
     return intents
 
 
