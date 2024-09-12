@@ -1,16 +1,16 @@
-from typing import List
+from typing import List, Optional
 from nextcord.ext import commands
 from jipp.models.jipp_models import Tool
-from smart_task_manager import SmartCreateTask, SmartTaskManager
+from smart_task_manager import SmartTaskManager
 from task_manager import TaskManager, CreateTask, StopTask, ListTasks
 
 
 class ToolManager(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot, smart_task_manager: Optional[SmartTaskManager] = None):
         self.bot = bot
         self.tools = {}
-
-        self.register_available_tools(bot)
+        self.smart_task_manager = smart_task_manager or self.load_smart_task_manager()
+        self.register_available_tools()
 
     def register_tool(self, tool: Tool):
         """Register a tool using the schema's name."""
@@ -22,16 +22,9 @@ class ToolManager(commands.Cog):
         for tool in tools:
             self.register_tool(tool)
 
-    def register_available_tools(self, bot=None):
+    def register_available_tools(self):
         """Register all available tools."""
-
-        bot = bot or self.bot
-
-        self.smart_task_manager: SmartTaskManager = (
-            bot.get_cog("SmartTaskManager") or self.load_smart_task_manager()
-        )
         smart_task_manager_tools = self.smart_task_manager.export_tools()
-
         self.register_tools(smart_task_manager_tools)
 
     def get_tool(self, tool_name: str):

@@ -161,8 +161,9 @@ class TaskManager(commands.Cog):
             except Exception as e:
                 log.error(f"Error while stopping task '{task_name}': {e}")
 
-            # Remove the task from the jobs list
+            # Remove the task from the jobs list and metadata
             del self.jobs[task_name]
+            del self.jobs_metadata[task_name]  # Add this line
             return f"Task '{task_name}' stopped and removed."
         else:
             return f"Task '{task_name}' does not exist."
