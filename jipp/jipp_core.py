@@ -162,11 +162,8 @@ async def ask_llm(
         )
 
     except Exception as e:
-        if isinstance(e, ValueError):
-            print(f"LLM Error: {e}")
-            raise LLMError(e)
-        print(f"An Exception occurred in ask_llm: {e}")
-        return None
+        # Change this part to always raise LLMError
+        raise LLMError(f"An error occurred: {str(e)}")
 
 
 def parse(response_format, response) -> Optional[BaseModel]:
