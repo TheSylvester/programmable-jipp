@@ -12,6 +12,16 @@ ENV/
 *.db
 *.sqlite3
 
+# pytest
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+
 # package
 *.egg-info/
 
@@ -35,3 +45,5 @@ docs/_sdk_docs/
 # logs
 *.log
 
+# JSON files data
+*.json
