@@ -134,9 +134,15 @@ class JippityBot(commands.Cog):
     )
     async def list_commands(self, ctx, arg=""):
 
-        if "task" in arg:
+        first_word = arg.strip().split(" ")[0]
+        if first_word == "tasks":
             task_manager = self.bot.get_cog("TaskManager")
             await task_manager.list_tasks(ctx)
+            return
+
+        if first_word == "models":
+            await self.list_models(ctx)
+            return
 
         if not arg:
             command_list = [command.name for command in self.bot.commands] + [
