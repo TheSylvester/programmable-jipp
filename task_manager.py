@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from jipp.models.jipp_models import Tool
 from message_chunker import send_chunked_message
-from utils.logging_utils import setup_logger
+from jipp.utils.logging_utils import setup_logger
 
 
 log = setup_logger()

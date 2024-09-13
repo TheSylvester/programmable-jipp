@@ -4,7 +4,7 @@ import os
 from jipp.utils.logging_utils import setup_logger
 from logging.handlers import RotatingFileHandler
 import gzip
-from utils.logging_utils import (
+from jipp.utils.logging_utils import (
     compress_log,
     CompressedRotatingFileHandler,
 )
@@ -39,9 +39,9 @@ def test_setup_logger_console_level(temp_log_dir):
 def test_setup_logger_file_handler(temp_log_dir):
     logger = setup_logger(name="test_logger", log_dir=str(temp_log_dir))
     file_handler = next(
-        h for h in logger.handlers if isinstance(h, RotatingFileHandler)
+        h for h in logger.handlers if isinstance(h, CompressedRotatingFileHandler)
     )
-    assert isinstance(file_handler, RotatingFileHandler)
+    assert isinstance(file_handler, CompressedRotatingFileHandler)
     expected_path = os.path.join(str(temp_log_dir), "test_logger.log")
     assert file_handler.baseFilename == expected_path
 
@@ -56,7 +56,7 @@ def test_setup_logger_max_bytes_and_backup_count(temp_log_dir):
         backup_count=backup_count,
     )
     file_handler = next(
-        h for h in logger.handlers if isinstance(h, RotatingFileHandler)
+        h for h in logger.handlers if isinstance(h, CompressedRotatingFileHandler)
     )
     assert file_handler.maxBytes == max_bytes
     assert file_handler.backupCount == backup_count

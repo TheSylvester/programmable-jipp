@@ -1,7 +1,7 @@
 import re
 from typing import Callable, Any, List, Deque
 from collections import deque
-from utils.logging_utils import setup_logger
+from jipp.utils.logging_utils import setup_logger
 
 log = setup_logger()
 
