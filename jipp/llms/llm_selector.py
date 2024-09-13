@@ -9,6 +9,7 @@ from jipp.utils.tokenizers.gpt_tokenizer import count_tokens_gpt
 MODEL_ALIASES = {
     "claude-sonnet": "claude-3-5-sonnet-20240620",
     "claude-haiku": "claude-3-haiku-20240307",
+    "gpt-4o": "gpt-4o",
     "gpt-4": "gpt-4o-mini",
     "gpt-4-mini": "gpt-4o-mini",
     "llama-tool-large": "llama3-groq-70b-8192-tool-use-preview",
@@ -79,6 +80,10 @@ MODEL_INFO = {
         "tokenizer_model": "mistralai/Mixtral-8x7B-v0.1",  # Use HuggingFace model identifier
     },
 }
+
+
+def get_model_names():
+    return [*MODEL_ALIASES.keys(), *MODEL_INFO.keys()]
 
 
 class ModelProfile:

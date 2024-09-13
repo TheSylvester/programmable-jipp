@@ -1,12 +1,19 @@
 import re
 from typing import Any, Callable, List, Optional
 from dataclasses import dataclass
-from nextcord import Message
+from nextcord import Message, Embed
 from nextcord.ext import commands
+from jipp.llms.llm_selector import MODEL_ALIASES, MODEL_INFO, get_model_names
 from jippity.jippity_core import Jippity
-from message_chunker import send_chunked_message
+from message_chunker import (
+    chunk_message_md_friendly,
+    get_full_text_from_message,
+    send_chunked_message,
+)
 from task_manager import CreateTask
 from tool_manager import ToolManager
+from jipp.jipp_fu_suite import ask_llms
+from jipp.models.jipp_models import LLMError
 
 
 @dataclass
@@ -139,6 +146,69 @@ class JippityBot(commands.Cog):
                 ctx.send, f"Available commands: {', '.join(command_list)}"
             )
             return
+
+    @commands.command(name="ask_llms", brief="Ask multiple LLMs a question")
+    async def ask_multiple_llms(self, ctx, *, models_prompt: str):
+        default_models = [
+            "gpt-4o-mini",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
+            "claude-haiku",
+        ]
+        models: List[str] = []
+        prompt = (await get_full_text_from_message(ctx.message)).strip()
+
+        # if the first words in models_prompt are models, then they are models
+        words = models_prompt.split()
+        model_names = self.jippity.get_model_names()
+        for word in words:
+            clean_word = word.strip().rstrip(",")
+            if clean_word in model_names:
+                models.append(clean_word)
+            else:
+                break
+
+        # If no valid models found, use default models
+        if not models:
+            models = default_models
+
+        # Extract the actual prompt
+        prompt = " ".join(words[len(models) :]).strip()
+
+        try:
+            results = await self.jippity.ask_multiple_llms(models=models, prompt=prompt)
+
+            # Create an embed for each model response, using chunked text if necessary
+            for model, conversation in results.items():
+                # If conversation is an error, handle it as an error
+                if isinstance(conversation, LLMError):
+                    await ctx.send(f"Error from {model}: {conversation}")
+                    continue
+
+                # Chunk the conversation text before adding to the embed
+                chunks = chunk_message_md_friendly(str(conversation))
+
+                # Create embeds for each chunk of conversation
+                for i, chunk in enumerate(chunks):
+                    embed = Embed(
+                        title=f"Response from {model} (Part {i + 1}/{len(chunks)})",
+                        description=chunk,
+                        color=0x00FF00,  # Optional: Set a color for the embed
+                    )
+
+                    # Optionally, add token usage stats if available
+                    if hasattr(conversation, "usage"):
+                        embed.add_field(
+                            name="Tokens Used",
+                            value=f"{conversation.usage.total_tokens}",
+                            inline=False,
+                        )
+
+                    # Send each embed chunk
+                    await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"An error occurred: {str(e)}")
 
 
 def setup(bot):

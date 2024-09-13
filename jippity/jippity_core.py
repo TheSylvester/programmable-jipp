@@ -1,9 +1,16 @@
-from typing import Callable, Any
+from typing import Callable, Any, List
 
 import nextcord
 from jipp import ask_llm, is_model_supported, Conversation
-from jipp.llms.llm_selector import MODEL_INFO
-from jipp.llms.llm_selector import get_model_profile
+from jipp.llms.llm_selector import (
+    MODEL_INFO,
+    MODEL_ALIASES,
+    get_model_names,
+    get_model_profile,
+)
+from jipp.jipp_fu_suite import ask_llms
+from jipp.models.jipp_models import LLMError
+from message_chunker import get_full_text_from_message
 from task_manager import StopTask, ListTasks, CreateTask
 
 
@@ -23,7 +30,9 @@ class Jippity:
         self, message: nextcord.Message, send_response: Callable[[str], Any]
     ):
         """Continues LLM chat with text contents from a nextcord Message, directly uses the send_response fn to reply"""
-        response = await self.chat(message.content)
+
+        content = await get_full_text_from_message(message)
+        response = await self.chat(content)
         response_text: str = str(response)
         print(f"Conversation in chat_response: ", response.model_dump_json(indent=2))
         await send_response(str(response_text))
@@ -69,6 +78,19 @@ class Jippity:
             model_info_str += f"  Features: {', '.join(model_profile.features)}\n"
             model_info_str += "\n"
         return model_info_str
+
+    def get_model_aliases(self):
+        return MODEL_ALIASES
+
+    def get_model_names(self):
+        return get_model_names()
+
+    async def ask_multiple_llms(self, models: List[str], prompt: str):
+        try:
+            results = await ask_llms(models=models, prompt=prompt)
+            return results
+        except Exception as e:
+            raise Exception(f"Error in ask_multiple_llms: {str(e)}")
 
     async def ask_llm_with_tools(self, model: str, prompt: str, tools: list):
         response = await ask_llm(
