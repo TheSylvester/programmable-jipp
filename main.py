@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from dotenv import load_dotenv
 import os
 from nextcord_bot import NextcordBot
@@ -10,6 +10,9 @@ load_dotenv()
 
 # Get Discord token from environment variables
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
+
 
 # Initialize the NextcordBot
 bot = NextcordBot()
@@ -38,6 +41,21 @@ async def read_root():
             f"Connected as {bot.user}" if bot.is_ready() else "Not connected"
         ),
     }
+
+
+def generate_oauth2_url():
+    scopes = "identify%20guilds%20bot"  # Customize the scopes as needed
+    permissions = 8  # Set permissions for the bot (admin in this case)
+    return (
+        f"https://discord.com/api/oauth2/authorize?"
+        f"client_id={DISCORD_CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope={scopes}&permissions={permissions}"
+    )
+
+
+@app.get("/oauth2")
+async def oauth2_redirect():
+    oauth2_url = generate_oauth2_url()
+    return Response(status_code=302, headers={"Location": oauth2_url})
 
 
 if __name__ == "__main__":
