@@ -47,3 +47,7 @@ docs/_sdk_docs/
 
 # JSON files data
 *.json
+
+.pytest_cache/
+.claudesync/
+
