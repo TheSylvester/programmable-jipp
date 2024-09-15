@@ -1,15 +1,12 @@
-from functools import partial
-import json
-import logging
-from logging.handlers import RotatingFileHandler
 from typing import Callable, Optional
 from nextcord.ext import commands
+from nextcord.ext.commands.errors import ExtensionNotFound
 from pydantic import BaseModel, Field
 from jipp import ask_llm
 from jipp.models.jipp_models import Tool
-from message_chunker import send_chunked_message
-from task_manager import TaskManager, StopTask, ListTasks, CreateTask
-from jipp.utils.logging_utils import setup_logger
+from bot_base.message_chunker import send_chunked_message
+from bot_base.task_manager import TaskManager, CreateTask
+from jipp.utils.logging_utils import log
 
 DEFAULT_TOOL_MODEL = "gpt-4o-mini"
 
@@ -36,8 +33,6 @@ CREATE_TASK_TOOL_CALL_SYSTEM_PROMPT = """Interpret the user's freeform instructi
    - **prompt**: "Remind me to call my doctor tomorrow morning."
 Ensure that user input is interpreted accurately and mapped to the correct fields. Apply reasonable defaults where necessary.
 """
-
-log = setup_logger(level="DEBUG", log_file=f"{__name__}.log")
 
 
 class SmartCreateTask(BaseModel):
@@ -93,13 +88,10 @@ class SmartTaskManager(commands.Cog):
 
     def load_task_manager(self):
         try:
-            self.bot.load_extension("task_manager")
-            task_manager = self.bot.get_cog("TaskManager")
-        except Exception as e:
-            raise ("TaskManager Cog not found")
-        if not task_manager:
-            raise ValueError("TaskManager Cog not found")
-        return task_manager
+            self.bot.load_extension("bot_base.task_manager")
+            return self.bot.get_cog("TaskManager")
+        except ExtensionNotFound:
+            raise RuntimeError("TaskManager Cog not found")
 
     @commands.command(name="task", brief="Creates a recurring task from instructions")
     async def create_task(self, ctx, *, instruction: str = ""):
@@ -136,7 +128,7 @@ class SmartTaskManager(commands.Cog):
             )
         except Exception as e:
             # TODO: tool call error or other error?
-            logging.error(f"SmartTaskManager ask_llm error: {e}")
+            log.error(f"SmartTaskManager ask_llm error: {e}")
             await send_chunked_message(ctx.send, f"SmartTaskManager ask_llm error: {e}")
             return
 

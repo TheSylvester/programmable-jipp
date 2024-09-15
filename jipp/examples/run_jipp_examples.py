@@ -8,7 +8,7 @@ sys.path.insert(0, project_root)
 import asyncio
 from typing import List
 from pydantic import BaseModel, Field
-from jipp.jipp_core import ask_llm
+from jipp.jipp_engine import ask_llm
 from jipp.models.jipp_models import LLMError
 
 

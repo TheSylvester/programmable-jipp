@@ -1,14 +1,16 @@
 from typing import List, Optional
+import nextcord
 from nextcord.ext import commands
+from nextcord.ext.commands.errors import ExtensionFailed
 from jipp.models.jipp_models import Tool
-from smart_task_manager import SmartTaskManager
-from task_manager import TaskManager, CreateTask, StopTask, ListTasks
+from bot_base.smart_task_manager import SmartTaskManager
 
 
 class ToolManager(commands.Cog):
     def __init__(self, bot, smart_task_manager: Optional[SmartTaskManager] = None):
         self.bot = bot
         self.tools = {}
+
         self.smart_task_manager = smart_task_manager or self.load_smart_task_manager()
         self.register_available_tools()
 
@@ -37,13 +39,10 @@ class ToolManager(commands.Cog):
 
     def load_smart_task_manager(self):
         try:
-            self.bot.load_extension("smart_task_manager")
-            smart_task_manager = self.bot.get_cog("SmartTaskManager")
-        except Exception as e:
-            raise ("SmartTaskManager Cog not found")
-        if not smart_task_manager:
-            raise ValueError("TaskManager Cog not found")
-        return smart_task_manager
+            self.bot.load_extension("bot_base.smart_task_manager")
+            return self.bot.get_cog("SmartTaskManager")
+        except ExtensionFailed:
+            raise RuntimeError("SmartTaskManager Cog not found")
 
 
 def setup(bot):

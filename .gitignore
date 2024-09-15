@@ -43,7 +43,17 @@ docs/_sdk_docs/
 *sdk*.txt
 
 # logs
+logs/
 *.log
+*.gz
+*.tar
+*.zip
+*.rar
+*.7z
+*.xz
+*.zst
+*.lz4
+*.lzma
 
 # JSON files data
 *.json
@@ -51,3 +61,5 @@ docs/_sdk_docs/
 .pytest_cache/
 .claudesync/
 
+*.egg-info/
+.cursorignore

@@ -1,15 +1,12 @@
 import asyncio
-import json
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable
 from nextcord.ext import tasks, commands
 from pydantic import BaseModel, Field
 
 from jipp.models.jipp_models import Tool
-from message_chunker import send_chunked_message
-from jipp.utils.logging_utils import setup_logger
+from bot_base.message_chunker import send_chunked_message
+from jipp.utils.logging_utils import log
 
-
-log = setup_logger()
 
 # Schemas for Function Calling
 

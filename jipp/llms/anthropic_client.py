@@ -27,6 +27,8 @@ from jipp.models.jipp_models import (
     NOT_GIVEN,
 )
 
+from jipp.utils.logging_utils import log
+
 ClaudeModel = Literal["claude-3-5-sonnet-20240229", "claude-3-haiku-20240307"]
 DEFAULT_CLAUDE_MODEL: ClaudeModel = "claude-3-5-sonnet-20240229"
 
@@ -286,9 +288,9 @@ def prepend_brace_to_anthropic_message(message: Message) -> Message:
 
     for content_block in message.content:
         if content_block.type == "text" and content_block.text.strip()[-1] == "}":
-            print("\n\nDEBUG - Prepending brace to text block!\n")
+            log.info(f"\n\nDEBUG - Prepending brace to text block!\n")
             content_block.text = "{" + content_block.text
             break  # Only prepend to the first text block
-        print("\n\nDEBUG - nope...\n")
+        log.debug("\n\nDEBUG - nope...\n")
 
     return message

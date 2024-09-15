@@ -10,11 +10,8 @@ from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel
 from jipp.models.jipp_models import Conversation, LLMError, Tool, NotGiven, NOT_GIVEN
 from jipp.llms.llm_selector import get_model_profile, ModelProfileNotFoundError
-from jipp.jipp_core import ask_llm
-from jipp.utils.logging_utils import setup_logger
-
-
-log = setup_logger(name="ask_llms", level="DEBUG")
+from jipp.jipp_engine import ask_llm
+from jipp.utils.logging_utils import log
 
 
 async def ask_llms(

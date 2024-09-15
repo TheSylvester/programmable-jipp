@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from dotenv import load_dotenv
 import os
-from nextcord_bot import NextcordBot
+from bot_base.nextcord_bot import NextcordBot
+from jipp.utils.logging_utils import log
 
 # Load environment variables
 load_dotenv()
@@ -13,18 +14,17 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 
-
 # Initialize the NextcordBot
 bot = NextcordBot()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Application is starting up...")
+    log.info("Application is starting up...")
     # Start the Discord bot
     asyncio.create_task(bot.start(DISCORD_TOKEN))
     yield
-    print("Application is shutting down...")
+    log.info("Application is shutting down...")
     # Close the Discord bot connection
     await bot.close()
 
@@ -61,4 +61,5 @@ async def oauth2_redirect():
 if __name__ == "__main__":
     import uvicorn
 
+    log.info("Starting the application...")
     uvicorn.run(app, host="0.0.0.0", port=8000)

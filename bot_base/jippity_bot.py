@@ -1,19 +1,17 @@
-import re
 from typing import Any, Callable, List, Optional
 from dataclasses import dataclass
 from nextcord import Message, Embed
+import nextcord
 from nextcord.ext import commands
-from jipp.llms.llm_selector import MODEL_ALIASES, MODEL_INFO, get_model_names
-from jippity.jippity_core import Jippity
-from message_chunker import (
+from jippity_ai.jippity_core import Jippity
+from bot_base.message_chunker import (
     chunk_message_md_friendly,
     get_full_text_from_message,
     send_chunked_message,
 )
-from task_manager import CreateTask
-from tool_manager import ToolManager
-from jipp.jipp_fu_suite import ask_llms
+from bot_base.tool_manager import ToolManager
 from jipp.models.jipp_models import LLMError
+from jipp.utils.logging_utils import log
 
 
 @dataclass
@@ -36,22 +34,32 @@ class Command:
 class JippityBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+        # Load AI
         self.jippity = Jippity()
+        self.jippity.load_prompts("jippity_ai/prompts")
+
+        # Load tools
         self.tool_manager: ToolManager = self.bot.get_cog("ToolManager")
         self.routes: List[Route] = []
         self.custom_commands: List[Command] = []
 
-        # initial commands
-        self.add_route(
-            Route(
-                name="Mention Response",
-                description="Responds with a greeting when the bot is mentioned",
-                condition=lambda message: self.bot.user in message.mentions,
-                function=lambda message, reply_function: self.respond_to_mention(
-                    message, reply_function
-                ),
-            )
-        )
+        # # initial commands
+        # self.add_route(
+        #     Route(
+        #         name="Mention Response",
+        #         description="Responds with a greeting when the bot is mentioned",
+        #         condition=lambda message: self.bot.user in message.mentions,
+        #         function=lambda message, reply_function: self.respond_to_mention(
+        #             message, reply_function
+        #         ),
+        #     )
+        # )
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        log.info(f"JippityBot on_ready username is {self.bot.user.name}")
+        self.jippity.set_bot_name(self.bot.user.name)
 
     async def respond_to_mention(
         self, message: Message, reply_function: Callable[[str], Any]
@@ -60,21 +68,39 @@ class JippityBot(commands.Cog):
         Generates basic completion"""
         await self.jippity.chat_response(message, reply_function)
 
+    # @commands.Cog.listener()
+    # async def on_message(self, message: Message):
+    #     if message.author == self.bot.user:
+    #         return
+
+    #     async def respond_fn(response):
+    #         return await send_chunked_message(message.channel.send, response)
+
+    #     for route in self.routes:
+    #         if route.condition(message):
+    #             await route.function(
+    #                 message,
+    #                 respond_fn,
+    #             )
+    #             return
+
     @commands.Cog.listener()
     async def on_message(self, message: Message):
+        log.debug(f"on_message: {message.content}")
         if message.author == self.bot.user:
             return
 
-        async def respond_fn(response):
+        content = await get_full_text_from_message(message)
+        channel_history_str = await get_channel_history(message.channel)
+
+        async def send_response(response):
             return await send_chunked_message(message.channel.send, response)
 
-        for route in self.routes:
-            if route.condition(message):
-                await route.function(
-                    message,
-                    respond_fn,
-                )
-                return
+        await self.jippity.message_listener(
+            message=content,
+            channel_history=channel_history_str,
+            send_response=send_response,
+        )
 
     def add_route(self, route: Route):
         self.routes.append(route)
@@ -215,6 +241,97 @@ class JippityBot(commands.Cog):
 
         except Exception as e:
             await ctx.send(f"An error occurred: {str(e)}")
+
+    @commands.command(name="list_prompts", brief="List available prompts")
+    async def list_prompts(self, ctx):
+        prompts = self.jippity.list_prompts()
+        prompt_list = "\n".join([f"- {prompt}" for prompt in prompts])
+        await send_chunked_message(ctx.send, f"Available prompts:\n{prompt_list}")
+
+    @commands.command(name="show_prompt", brief="Show content of a specific prompt")
+    async def show_prompt(self, ctx, prompt_name: str):
+        try:
+            prompt_content = self.jippity.get_prompt(prompt_name)
+            await send_chunked_message(
+                ctx.send, f"Prompt: {prompt_name}\nContent:\n{prompt_content}"
+            )
+        except AttributeError:
+            await ctx.send(f"Prompt '{prompt_name}' not found.")
+
+    @commands.command(name="ask_llms", brief="Ask multiple LLMs a question")
+    async def ask_multiple_llms(self, ctx, *, models_prompt: str):
+        default_models = [
+            "gpt-4o-mini",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
+            "claude-haiku",
+        ]
+        models: List[str] = []
+        prompt = (await get_full_text_from_message(ctx.message)).strip()
+
+        # if the first words in models_prompt are models, then they are models
+        words = models_prompt.split()
+        model_names = self.jippity.get_model_names()
+        for word in words:
+            clean_word = word.strip().rstrip(",")
+            if clean_word in model_names:
+                models.append(clean_word)
+            else:
+                break
+
+        # If no valid models found, use default models
+        if not models:
+            models = default_models
+
+        # Extract the actual prompt
+        prompt = " ".join(words[len(models) :]).strip()
+
+        try:
+            results = await self.jippity.ask_multiple_llms(models=models, prompt=prompt)
+
+            # Create an embed for each model response, using chunked text if necessary
+            for model, conversation in results.items():
+                # If conversation is an error, handle it as an error
+                if isinstance(conversation, LLMError):
+                    await ctx.send(f"Error from {model}: {conversation}")
+                    continue
+
+                # Chunk the conversation text before adding to the embed
+                chunks = chunk_message_md_friendly(str(conversation))
+
+                # Create embeds for each chunk of conversation
+                for i, chunk in enumerate(chunks):
+                    embed = Embed(
+                        title=f"Response from {model} (Part {i + 1}/{len(chunks)})",
+                        description=chunk,
+                        color=0x00FF00,  # Optional: Set a color for the embed
+                    )
+
+                    # Optionally, add token usage stats if available
+                    if hasattr(conversation, "usage"):
+                        embed.add_field(
+                            name="Tokens Used",
+                            value=f"{conversation.usage.total_tokens}",
+                            inline=False,
+                        )
+
+                    # Send each embed chunk
+                    await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"An error occurred: {str(e)}")
+
+
+async def get_channel_history(channel: nextcord.TextChannel, limit: int = 30) -> str:
+    channel_history = await channel.history(limit=limit).flatten()
+    channel_history_str = ""
+    for channel_message in reversed(channel_history):
+        timestamp = channel_message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        channel_history_str += (
+            f"[{timestamp}] {channel_message.author}: {channel_message.content}\n"
+        )
+    log.debug(f"channel_history_str: {channel_history_str}")
+    return channel_history_str
 
 
 def setup(bot):

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List
 from jipp.llms.openai_client import ask_openai, LLMError
 from jipp.models.jipp_models import LLMMessage, LLMResponse
-from jipp.jipp_core import _create_image_message_content_from_filepath
+from jipp.jipp_engine import _create_image_message_content_from_filepath
 
 
 @pytest.mark.asyncio

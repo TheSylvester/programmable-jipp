@@ -22,6 +22,8 @@ from jipp.utils.message_utils import (
 from jipp.utils.tokenizers.gpt_tokenizer import count_tokens_gpt
 from jipp.utils.tokenizers.approximate_tokenizer import count_tokens_approximate
 
+from jipp.utils.logging_utils import log
+
 TokenizerFunc = Callable[[str], int]
 MessageTrimmerFunc = Callable[[List[LLMMessage], str, int], List[LLMMessage]]
 
@@ -43,37 +45,37 @@ def count_tokens(
     Returns:
         int: The number of tokens in the input string.
     """
-    print(f"Counting tokens for text: '{text}'")
+    log.info(f"Counting tokens for text: '{text}'")
     result = 0
     if tokenizer_func is not None:
         try:
             result = tokenizer_func(text)
         except Exception as e:
-            print(f"Error using provided tokenizer function: {e}")
+            log.error(f"Error using provided tokenizer function: {e}")
             result = count_tokens_approximate(text)
     elif not model:
-        print("No model specified, using approximate tokenizer")
+        log.info("No model specified, using approximate tokenizer")
         result = count_tokens_approximate(text)
     else:
-        print(f"Using model '{model}' to count tokens")
+        log.info(f"Using model '{model}' to count tokens")
         try:
             model_profile = get_model_profile(model)
             tokenizer_model = model_profile.tokenizer_model
             result = count_tokens_gpt(text, tokenizer_model)
         except ModelProfileNotFoundError as e:
-            print(f"Error: Model profile not found for '{model}': {e}")
-            print("Falling back to approximate tokenization.")
+            log.error(f"Error: Model profile not found for '{model}': {e}")
+            log.warning("Falling back to approximate tokenization.")
             result = count_tokens_approximate(text)
         except ValueError as e:
-            print(f"Error: Invalid tokenizer model for '{model}': {e}")
-            print("Falling back to approximate tokenization.")
+            log.error(f"Error: Invalid tokenizer model for '{model}': {e}")
+            log.warning("Falling back to approximate tokenization.")
             result = count_tokens_approximate(text)
         except Exception as e:
-            print(f"Unexpected error occurred while counting tokens: {e}")
-            print("Falling back to approximate tokenization.")
+            log.error(f"Unexpected error occurred while counting tokens: {e}")
+            log.warning("Falling back to approximate tokenization.")
             result = count_tokens_approximate(text)
 
-    print(f"Token count: {result}")
+    log.info(f"Token count: {result}")
     return result
 
 
@@ -96,12 +98,12 @@ def count_tokens_in_messages(messages: List[LLMMessage], model: str) -> int:
         )
         return count_tokens(combined_text, model)
     except ModelProfileNotFoundError as e:
-        print(f"Error: {e}")
-        print("Falling back to approximate tokenization.")
+        log.error(f"Error: {e}")
+        log.warning("Falling back to approximate tokenization.")
         return count_tokens_approximate(combined_text)
     except Exception as e:
-        print(f"Unexpected error occurred while counting tokens: {e}")
-        print("Falling back to approximate tokenization.")
+        log.error(f"Unexpected error occurred while counting tokens: {e}")
+        log.warning("Falling back to approximate tokenization.")
         return count_tokens_approximate(combined_text)
 
 
@@ -125,14 +127,14 @@ def trim_messages_with_strategy(
     """
     total_tokens = count_tokens_in_messages(messages, model)
 
-    print(
+    log.info(
         f"\nBefore trimming - Total tokens: {total_tokens}, Context window: {context_window}"
     )
-    print("Messages before trimming:")
+    log.info("Messages before trimming:")
     print_messages(messages)
 
     if total_tokens > context_window:
-        print(
+        log.info(
             f"Trim Engaged => Total tokens: {total_tokens}, Context window: {context_window}"
         )
         trimmed_messages = trim_messages(
@@ -141,7 +143,7 @@ def trim_messages_with_strategy(
             lambda x: count_tokens(x, model),
             trimming_strategy,
         )
-        print("Messages after trimming:")
+        log.info("Messages after trimming:")
         print_messages(trimmed_messages)
         return trimmed_messages
 
@@ -153,7 +155,7 @@ def main():
     context_window = 50  # Set a small context window for demonstration
 
     # Test case 1: Original test case
-    print("\nTest case 1: Original test case")
+    log.info("\nTest case 1: Original test case")
     messages1 = [
         LLMMessage(role="system", content="System prompt"),
         LLMMessage(role="user", content="A" * 1000),
@@ -161,7 +163,7 @@ def main():
     test_trimming(messages1, sample_model, context_window)
 
     # Test case 2: Multiple short messages
-    print("\nTest case 2: Multiple short messages")
+    log.info("\nTest case 2: Multiple short messages")
     messages2 = [
         LLMMessage(role="system", content="System prompt"),
         LLMMessage(role="user", content="Hello, how are you?"),
@@ -174,7 +176,7 @@ def main():
     test_trimming(messages2, sample_model, context_window)
 
     # Test case 3: Mix of short and long messages
-    print("\nTest case 3: Mix of short and long messages")
+    log.info("\nTest case 3: Mix of short and long messages")
     messages3 = [
         LLMMessage(role="system", content="System prompt"),
         LLMMessage(role="user", content="Hello"),
@@ -185,22 +187,22 @@ def main():
     test_trimming(messages3, sample_model, context_window)
 
     # Test case 4: Larger context window
-    print("\nTest case 4: Larger context window")
+    log.info("\nTest case 4: Larger context window")
     test_trimming(messages3, sample_model, 100)
 
 
 def test_trimming(messages, model, context_window):
-    print(f"\nBefore trimming:")
+    log.info(f"\nBefore trimming:")
     print_messages(messages)
     total_tokens = count_tokens_in_messages(messages, model)
-    print(f"Total tokens: {total_tokens}")
+    log.info(f"Total tokens: {total_tokens}")
 
-    print(f"\nTrimming with context window: {context_window}")
+    log.info(f"\nTrimming with context window: {context_window}")
     trimmed_messages = trim_messages_with_strategy(messages, model, context_window)
 
-    print("\nAfter trimming:")
+    log.info("\nAfter trimming:")
     print_messages(trimmed_messages)
-    print(f"Total tokens: {count_tokens_in_messages(trimmed_messages, model)}")
+    log.info(f"Total tokens: {count_tokens_in_messages(trimmed_messages, model)}")
 
 
 if __name__ == "__main__":

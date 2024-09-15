@@ -138,7 +138,7 @@ async def run_ask_groq_error():
 
 
 async def run_ask_groq_with_images():
-    from jipp.jipp_core import _create_image_message_content_from_filepath
+    from jipp.jipp_engine import _create_image_message_content_from_filepath
 
     # test images and filepaths
     image_url_1 = "https://images.squarespace-cdn.com/content/v1/60f1a490a90ed8713c41c36c/1629223610791-LCBJG5451DRKX4WOB4SP/37-design-powers-url-structure.jpeg"

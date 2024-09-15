@@ -2,7 +2,7 @@ import pytest
 from pydantic import BaseModel, Field
 from typing import List
 
-from jipp.jipp_core import ask_llm
+from jipp.jipp_engine import ask_llm
 from jipp.models.jipp_models import Conversation, LLMError, Tool
 
 

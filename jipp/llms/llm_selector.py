@@ -5,6 +5,7 @@ from typing import Callable, List
 
 from jipp.utils.tokenizers.approximate_tokenizer import count_tokens_approximate
 from jipp.utils.tokenizers.gpt_tokenizer import count_tokens_gpt
+from jipp.utils.logging_utils import log
 
 MODEL_ALIASES = {
     "claude-sonnet": "claude-3-5-sonnet-20240620",

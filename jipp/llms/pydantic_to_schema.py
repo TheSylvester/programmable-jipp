@@ -1,5 +1,6 @@
 from typing import Any, Dict, Union
 import pydantic
+from jipp.utils.logging_utils import log
 
 
 def pydantic_model_to_openai_schema(

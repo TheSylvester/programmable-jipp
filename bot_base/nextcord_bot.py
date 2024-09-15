@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import nextcord
 from nextcord.ext import commands
+from jipp.utils.logging_utils import log
 
 # Load environment variables
 load_dotenv()
@@ -58,11 +59,13 @@ class NextcordBot(commands.Bot):
         intents = setup_intents()
         setup_nextcord_logger()
         super().__init__(command_prefix=COMMAND_PREFIX, intents=intents)
-        self.load_extension("tool_manager")
-        self.load_extension("jippity_bot")
+
+        # Load extensions
+        self.load_extension("bot_base.tool_manager")
+        self.load_extension("bot_base.jippity_bot")
 
     async def on_ready(self):
-        print(f"We have logged in as {self.user}")
+        log.info(f"We have logged in as {self.user}")
 
 
 if __name__ == "__main__":

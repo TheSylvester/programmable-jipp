@@ -16,6 +16,7 @@ from jipp.models.jipp_models import (
     NOT_GIVEN,
 )
 from jipp.llms.llm_selector import get_model_profile
+from jipp.utils.logging_utils import log
 
 client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 

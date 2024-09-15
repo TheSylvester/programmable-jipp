@@ -1,5 +1,5 @@
 import os
-from typing import Union, Optional, Dict, List, Any, Tuple
+from typing import Union, Optional, Dict, List
 from pydantic import BaseModel
 from openai import AsyncOpenAI
 from openai.types.chat import (
@@ -19,6 +19,8 @@ from jipp.models.jipp_models import (
     LLMMessage,
     LLMResponse,
 )
+
+from jipp.utils.logging_utils import log
 
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -57,6 +59,7 @@ async def ask_openai(
                 )
                 for tool in tools
             ]
+            log.info(f"Processed tools: {processed_tools}")
         else:
             processed_tools = NOT_GIVEN
 

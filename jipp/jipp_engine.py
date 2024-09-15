@@ -1,6 +1,5 @@
 import base64
 import io
-import logging
 from PIL import Image
 from jinja2 import Template
 from jipp.llms.llm_selector import get_model_profile
@@ -17,6 +16,7 @@ from jipp.models.jipp_models import (
 from typing import Literal, Optional, List, Dict, Type, Union
 from pydantic import BaseModel
 from jipp.models.jipp_models import NotGiven, NOT_GIVEN
+from jipp.utils.logging_utils import log
 
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant"
@@ -128,14 +128,14 @@ async def ask_llm(
         messages.append(user_message)
 
         # call LLM
-        print(f"Prepared messages: {messages}\nGenerating response")
+        log.info(f"Prepared messages: {messages}\nGenerating response")
         response = await ask_client(messages=messages, **kwargs)
-        print(f"Got response: {response}")
+        log.info(f"Got response: {response}")
 
         # handle tool call requests until LLM stops calling tools
         while response.message.tool_calls:
             tool_calls = response.message.tool_calls
-            print(f"Got tool calls: {tool_calls}")
+            log.info(f"Got tool calls: {tool_calls}")
             # append the tool call request back into the messages
             messages.append(response.message)
 
@@ -144,7 +144,7 @@ async def ask_llm(
                 messages.append(tool_message)
 
             response = await ask_client(messages=messages, **kwargs)
-            print(f"Got response after tool calls: {response}")
+            log.info(f"Got response after tool calls: {response}")
 
         # parse output if we have a response model
         add_parsed = {}
@@ -181,7 +181,7 @@ def parse(response_format, response) -> Optional[BaseModel]:
         if issubclass(response_format, BaseModel):
             return response_format.model_validate_json(response.message.content)
     except Exception as e:
-        print(
+        log.warning(
             f"WARNING: Parsing error from output to response_format: {e} - output format IGNORED"
         )
 
@@ -360,7 +360,7 @@ async def handle_tool_call_request(
         LLMMessage: The tool message to return to the LLM.
     """
     tool_response = await execute_tool_call(tool_call, tools)
-    print(f"Tool response: {tool_response}")
+    log.info(f"Tool response: {tool_response}")
     tool_message = LLMMessage(
         tool_call_id=tool_call.id, role="tool", content=tool_response
     )
@@ -381,16 +381,16 @@ async def execute_tool_call(tool_call: ToolCall, tools: List[Tool]) -> str:
     Raises:
         ValueError: If the requested tool is not found.
     """
-    logging.debug(tool_call)
+    log.debug(tool_call)
     for tool in tools:
-        logging.debug(tool)
+        log.debug(tool)
         if tool.schema.__name__ == tool_call.function.name:
             validated_args = tool.schema.model_validate_json(
                 tool_call.function.arguments
             )
             arguments = validated_args.model_dump()
 
-            logging.debug(arguments)
+            log.debug(arguments)
             result = await tool(**arguments)
             return result
 
