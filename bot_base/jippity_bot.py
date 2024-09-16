@@ -34,6 +34,7 @@ class Command:
 class JippityBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.log = log
 
         # Load AI
         self.jippity = Jippity()
@@ -58,7 +59,7 @@ class JippityBot(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        log.info(f"JippityBot on_ready username is {self.bot.user.name}")
+        self.log.info(f"JippityBot on_ready username is {self.bot.user.name}")
         self.jippity.set_bot_name(self.bot.user.name)
 
     async def respond_to_mention(
@@ -68,25 +69,13 @@ class JippityBot(commands.Cog):
         Generates basic completion"""
         await self.jippity.chat_response(message, reply_function)
 
-    # @commands.Cog.listener()
-    # async def on_message(self, message: Message):
-    #     if message.author == self.bot.user:
-    #         return
-
-    #     async def respond_fn(response):
-    #         return await send_chunked_message(message.channel.send, response)
-
-    #     for route in self.routes:
-    #         if route.condition(message):
-    #             await route.function(
-    #                 message,
-    #                 respond_fn,
-    #             )
-    #             return
-
     @commands.Cog.listener()
     async def on_message(self, message: Message):
-        log.debug(f"on_message: {message.content}")
+        try:
+            self.log.debug(f"on_message: {message.content}")
+        except UnicodeEncodeError:
+            self.log.debug(f"on_message: <message contains unsupported characters>")
+
         if message.author == self.bot.user:
             return
 
@@ -327,9 +316,8 @@ async def get_channel_history(channel: nextcord.TextChannel, limit: int = 30) ->
     channel_history_str = ""
     for channel_message in reversed(channel_history):
         timestamp = channel_message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        channel_history_str += (
-            f"[{timestamp}] {channel_message.author}: {channel_message.content}\n"
-        )
+        author_id = channel_message.author.id
+        channel_history_str += f"[{timestamp}] {channel_message.author.name} (ID: {author_id}): {channel_message.content}\n"
     log.debug(f"channel_history_str: {channel_history_str}")
     return channel_history_str
 

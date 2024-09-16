@@ -1,4 +1,3 @@
-Your username is {{bot_username}} .
 A message has been sent in a Discord channel you are monitoring:
 
 <incoming_message>
@@ -11,4 +10,12 @@ Context to consider:
 {{history_string}}
 </channel_history>
 
-Analyze this message and determine whether to respond based on your guidelines. If you should be providing a response, extract the relevent messages from the channel Chat History that would provide context for that reply, and pass that to the "RespondToMessage" tool to be form a response.
+Analyze the incoming message and determine:
+
+- speaker's identity and role in the conversation
+- message intent
+- intended audience of the message
+- what the speaker may expect as a response
+- conversation turn and who should respond next
+- whether '{{bot_username}}' should respond
+- reason for why `{{bot_username}}` should or should not respond

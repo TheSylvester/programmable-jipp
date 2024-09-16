@@ -11,40 +11,9 @@ from jipp.llms.llm_selector import (
     get_model_profile,
 )
 from jipp.jipp_fu_suite import ask_llms
-from jipp.utils.logging_utils import setup_logger
+from jipp.utils.logging_utils import log
 from bot_base.message_chunker import get_full_text_from_message
-
-log = setup_logger()
-
-
-class PromptManager:
-    def __init__(self):
-        self._prompts_dir = None
-
-    def load_prompts(self, directory: str) -> None:
-        self._prompts_dir = directory
-
-    def __getattr__(self, name: str) -> str:
-        if self._prompts_dir is None:
-            raise RuntimeError("Prompts directory not set. Call load_prompts first.")
-
-        file_path = os.path.join(self._prompts_dir, f"{name}.md")
-        if os.path.exists(file_path):
-            with open(file_path, "r", encoding="utf-8") as file:
-                return file.read().strip()
-        raise AttributeError(f"No prompt named '{name}' found")
-
-    def list_prompts(self) -> List[str]:
-        if self._prompts_dir is None:
-            raise RuntimeError("Prompts directory not set. Call load_prompts first.")
-        return [
-            os.path.splitext(f)[0]
-            for f in os.listdir(self._prompts_dir)
-            if f.endswith(".md")
-        ]
-
-
-PROMPTS = PromptManager()
+from jippity_ai.prompt_loader import PROMPTS
 
 
 class RespondToMessage(BaseModel):
@@ -64,6 +33,25 @@ class RespondToMessage(BaseModel):
     )
 
 
+class MessageAnalysis(BaseModel):
+    """Structured output for message analysis."""
+
+    speaker: str = Field(
+        ..., description="The speaker's identity and role in the conversation"
+    )
+    intent: str = Field(..., description="The intent of the message")
+    audience: str = Field(..., description="The intended audience of the message")
+    expected: str = Field(
+        ..., description="The speaker's expectation of a response, if any"
+    )
+    conversation_flow: str = Field(
+        ..., description="The current flow of the conversation"
+    )
+    should_respond: bool = Field(
+        ..., description="Whether '{{bot_username}}' should respond"
+    )
+
+
 class Jippity:
     def __init__(
         self,
@@ -79,50 +67,41 @@ class Jippity:
     async def message_listener(
         self, message: str, channel_history: str, send_response: Callable[[str], Any]
     ):
-
         system_prompt = PROMPTS.MESSAGE_LISTENER_SYSTEM_PROMPT
         prompt = PROMPTS.MESSAGE_LISTENER_PROMPT
 
-        async def respond_to_message(thoughts: str = "", context: str = ""):
-            response_string = f"\n\n**message:**\n{message}\n\n**context:**\n{context}\n\n**thoughts:**\n{thoughts}\n"
-            await send_response(response_string)
-            return response_string
-
-        print("\n\n", RespondToMessage.model_json_schema(), "\n\n")
-
-        response = await ask_llm(
+        analysis = await ask_llm(
             model="gpt-4o-mini",
             prompt=prompt,
             system=system_prompt,
-            tool_choice="auto",
-            tools=[
-                {
-                    "schema": RespondToMessage,
-                    "function": respond_to_message,
-                }
-            ],
+            response_format=MessageAnalysis,
             bot_username=self.bot_name,
             history_string=channel_history,
             message_string=message,
         )
-        response_text: str = str(response)
-        log.debug(f"message_listener: {response_text}\n\n")
 
-    async def chat_response_with_history_and_thoughts(
-        self,
-        message: nextcord.Message,
-        send_response: Callable[[str], Any],
-        history: str,
-        thoughts: str,
-    ):
-        """Continues LLM chat with text contents from a nextcord Message, directly uses the send_response fn to reply"""
+        if analysis.parsed.should_respond:
+            response_system_prompt = PROMPTS.MESSAGE_RESPONSE_SYSTEM_PROMPT
+            response_prompt = PROMPTS.MESSAGE_RESPONSE_PROMPT
 
-        content = await get_full_text_from_message(message)
-        response = await self.chat(content)
-        response_text: str = str(response)
-        print(f"Conversation in chat_response: ", response.model_dump_json(indent=2))
-        await send_response(str(response_text))
-        return response
+            response = await ask_llm(
+                model="gpt-4o-mini",
+                prompt=response_prompt,
+                system=response_system_prompt,
+                bot_username=self.bot_name,
+                history_string=channel_history,
+                message_string=message,
+                message_analysis=analysis.parsed.model_dump_json(indent=2),
+            )
+
+            await send_response(str(response))
+
+        response_text: str = str(analysis)
+        response_object_text = analysis.parsed.model_dump_json(indent=2)
+        log.debug(
+            f"message_listener:\nresponse_text: {response_text}\n\nresponse_object_text: {response_object_text}\n\n"
+        )
+        return analysis
 
     async def chat_response(
         self, message: nextcord.Message, send_response: Callable[[str], Any]

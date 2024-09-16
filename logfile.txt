@@ -1,0 +1,4 @@
+😊 This is an emoji log entry
+2024-09-15 22:52:44,787 - INFO - Logging with emoji 😊
+😊 This is an emoji log entry
+2024-09-15 22:53:12,395 - INFO - Logging with emoji 😊

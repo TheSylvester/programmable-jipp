@@ -6,6 +6,8 @@ import os
 from bot_base.nextcord_bot import NextcordBot
 from jipp.utils.logging_utils import log
 
+# Set up logging
+
 # Load environment variables
 load_dotenv()
 
