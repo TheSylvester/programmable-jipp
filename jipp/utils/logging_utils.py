@@ -35,12 +35,16 @@ except Exception as e:
 
 def compress_log(source, dest):
     with open(source, "rb") as f_in:
-        with gzip.open(f"{dest}", "wb") as f_out:  # Remove the .gz extension here
+        with gzip.open(f"{dest}", "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
     os.remove(source)
 
 
 class CompressedRotatingFileHandler(RotatingFileHandler):
+    def __init__(self, *args, **kwargs):
+        kwargs["encoding"] = "utf-8"  # Ensure UTF-8 encoding
+        super().__init__(*args, **kwargs)
+
     def rotation_filename(self, default_name):
         return default_name + ".gz"
 
@@ -70,30 +74,33 @@ class CompressedRotatingFileHandler(RotatingFileHandler):
             self.stream = self._open()
 
 
+class UnicodeSafeStreamHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except UnicodeEncodeError:
+            msg = msg.encode(stream.encoding, errors="replace").decode(stream.encoding)
+            stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 def setup_logger(
     name: Optional[str] = None,
-    console_level: Union[str, int] = None,  # Changed from "INFO" to None
+    console_level: Union[str, int] = None,
     log_dir: str = "logs",
     max_bytes: int = 1_000_000,  # 1 MB
     backup_count: int = 5,
     log_to_file: bool = True,
     propagate: bool = False,
 ) -> logging.Logger:
-    """
-    Sets up and returns a logger with console logging at specified level and optional file logging.
-
-    :param name: The name of the logger, defaults to the module name.
-    :param console_level: The logging level for console output as string or int (e.g., "DEBUG", "INFO", logging.WARNING).
-    :param log_dir: Directory to store log files.
-    :param max_bytes: The maximum size (in bytes) for the log file before rotating.
-    :param backup_count: The number of backup log files to keep after rotating.
-    :param log_to_file: Whether to log to a file in addition to console.
-    :param propagate: Whether the logger should propagate messages to its parent.
-    :return: Configured logger instance.
-    """
     name = name or __name__
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)  # Set to lowest level to capture all logs
+    logger.setLevel(logging.DEBUG)
     logger.propagate = propagate
 
     # Remove existing handlers to avoid duplication
@@ -108,8 +115,8 @@ def setup_logger(
     if isinstance(console_level, str):
         console_level = getattr(logging, console_level.upper())
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Console handler with Unicode support
+    console_handler = UnicodeSafeStreamHandler(sys.stdout)
     console_handler.setLevel(console_level)
     console_formatter = logging.Formatter("%(levelname)s - %(message)s")
     console_handler.setFormatter(console_formatter)
@@ -123,7 +130,7 @@ def setup_logger(
             file_handler = CompressedRotatingFileHandler(
                 log_file, maxBytes=max_bytes, backupCount=backup_count
             )
-            file_handler.setLevel(logging.DEBUG)  # Capture all log levels in file
+            file_handler.setLevel(logging.DEBUG)
             file_formatter = logging.Formatter(
                 "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
             )
@@ -139,20 +146,13 @@ def setup_logger(
     return logger
 
 
-# Convenience function to get a logger
 def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """
-    Get a logger with the given name. If the logger doesn't exist, it will be created with default settings.
-
-    :param name: The name of the logger.
-    :return: Logger instance.
-    """
     return logging.getLogger(name or __name__)
 
 
 # Global configuration
 try:
-    logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG to allow all log levels
+    logging.basicConfig(level=logging.DEBUG)
 except Exception as e:
     print(f"Failed to configure global logging: {str(e)}", file=sys.stderr)
 
@@ -163,9 +163,7 @@ class GlobalLoggerSettings:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._global_console_level = (
-                logging.INFO
-            )  # Ensure this is INFO by default
+            cls._instance._global_console_level = logging.INFO
         return cls._instance
 
     @property
@@ -257,17 +255,6 @@ class LoggerProxy:
 
 
 log = LoggerProxy()
-
-# Note: Default logging levels
-# - Console: INFO (can be changed using log.console_level setter)
-# - File: DEBUG (captures all log levels in file, if file logging is enabled)
-
-# TODO: Convert print() statements to appropriate log calls
-# - Use log.info() for general information (equivalent to most print() statements)
-# - Use log.debug() for detailed debug information
-# - Use log.warning() for warning messages
-# - Use log.error() for error messages
-# - Use log.critical() for critical errors that may cause the application to fail
 
 # Example usage:
 # log.info("Application started")
