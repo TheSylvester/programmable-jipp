@@ -64,6 +64,13 @@ class NextcordBot(commands.Bot):
         self.load_extension("bot_base.tool_manager")
         self.load_extension("bot_base.jippity_bot")
 
+    @commands.command(name="clear_channel")
+    @commands.has_permissions(manage_messages=True)
+    async def clear_channel_messages(self, ctx):
+        """Clears all messages in the current channel."""
+        await ctx.channel.purge(limit=None)  # Purges all messages in the channel
+        await ctx.send("All messages deleted.", delete_after=5)  # Confirmation message
+
     async def on_ready(self):
         log.info(f"We have logged in as {self.user}")
 
