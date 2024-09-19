@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import nextcord
 from nextcord.ext import commands
 from jipp.utils.logging_utils import log
+import aiohttp
+from pydantic import BaseModel
 
 # Load environment variables
 load_dotenv()
@@ -54,25 +56,61 @@ def setup_intents():
     return intents
 
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class UserInfo(BaseModel):
+    id: str
+    username: str
+    discriminator: str
+    avatar: str | None
+
+
 class NextcordBot(commands.Bot):
     def __init__(self):
-        intents = setup_intents()
-        setup_nextcord_logger()
+        intents = nextcord.Intents.default()
+        intents.message_content = True
         super().__init__(command_prefix=COMMAND_PREFIX, intents=intents)
 
         # Load extensions
         self.load_extension("bot_base.tool_manager")
         self.load_extension("bot_base.jippity_bot")
 
-    @commands.command(name="clear_channel")
-    @commands.has_permissions(manage_messages=True)
-    async def clear_channel_messages(self, ctx):
-        """Clears all messages in the current channel."""
-        await ctx.channel.purge(limit=None)  # Purges all messages in the channel
-        await ctx.send("All messages deleted.", delete_after=5)  # Confirmation message
-
     async def on_ready(self):
         log.info(f"We have logged in as {self.user}")
+
+    async def get_access_token(self, code: str) -> Token:
+        async with aiohttp.ClientSession() as session:
+            token_url = "https://discord.com/api/oauth2/token"
+            data = {
+                "client_id": self.application_id,
+                "client_secret": self.http.client.client_secret,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": "YOUR_REDIRECT_URI",
+            }
+            async with session.post(token_url, data=data) as resp:
+                if resp.status != 200:
+                    raise HTTPException(
+                        status_code=400, detail="Failed to retrieve access token"
+                    )
+                token_data = await resp.json()
+                return Token(**token_data)
+
+    async def get_user_info(self, access_token: str) -> UserInfo:
+        async with aiohttp.ClientSession() as session:
+            headers = {"Authorization": f"Bearer {access_token}"}
+            async with session.get(
+                "https://discord.com/api/users/@me", headers=headers
+            ) as resp:
+                if resp.status != 200:
+                    raise HTTPException(
+                        status_code=400, detail="Failed to retrieve user info"
+                    )
+                user_data = await resp.json()
+                return UserInfo(**user_data)
 
 
 if __name__ == "__main__":

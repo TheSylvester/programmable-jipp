@@ -13,43 +13,8 @@ from jipp.llms.llm_selector import (
 from jipp.jipp_fu_suite import ask_llms
 from jipp.utils.logging_utils import log
 from bot_base.message_chunker import get_full_text_from_message
-from jippity_ai.prompt_loader import PROMPTS
-
-
-class RespondToMessage(BaseModel):
-    """Prompts an LLM to respond to a message."""
-
-    context: str = Field(
-        ...,
-        description="The relevant context of this conversation, including only relevant messages from the history and the current message",
-    )
-    thoughts: str = Field(
-        ...,
-        description="Thoughts on why you are responding to this message, and ",
-    )
-    # model_config = ConfigDict(strict=True)
-    model_config = ConfigDict(
-        extra="forbid", json_schema_extra={"required": ["context", "thoughts"]}
-    )
-
-
-class MessageAnalysis(BaseModel):
-    """Structured output for message analysis."""
-
-    speaker: str = Field(
-        ..., description="The speaker's identity and role in the conversation"
-    )
-    intent: str = Field(..., description="The intent of the message")
-    audience: str = Field(..., description="The intended audience of the message")
-    expected: str = Field(
-        ..., description="The speaker's expectation of a response, if any"
-    )
-    conversation_flow: str = Field(
-        ..., description="The current flow of the conversation"
-    )
-    should_respond: bool = Field(
-        ..., description="Whether '{{bot_username}}' should respond"
-    )
+from jippity_ai.programs import analyze_incoming_message
+from jippity_ai.programs.decide_action.program import decide_action
 
 
 class Jippity:
@@ -67,41 +32,22 @@ class Jippity:
     async def message_listener(
         self, message: str, channel_history: str, send_response: Callable[[str], Any]
     ):
-        system_prompt = PROMPTS.MESSAGE_LISTENER_SYSTEM_PROMPT
-        prompt = PROMPTS.MESSAGE_LISTENER_PROMPT
 
-        analysis = await ask_llm(
-            model="gpt-4o-mini",
-            prompt=prompt,
-            system=system_prompt,
-            response_format=MessageAnalysis,
-            bot_username=self.bot_name,
-            history_string=channel_history,
-            message_string=message,
-        )
+        message_analysis = await analyze_incoming_message(message, channel_history)
+        log.debug(f"message_analysis: {message_analysis}")
 
-        if analysis.parsed.should_respond:
-            response_system_prompt = PROMPTS.MESSAGE_RESPONSE_SYSTEM_PROMPT
-            response_prompt = PROMPTS.MESSAGE_RESPONSE_PROMPT
+        action = await decide_action(message_analysis, self.bot_name)
 
-            response = await ask_llm(
-                model="gpt-4o-mini",
-                prompt=response_prompt,
-                system=response_system_prompt,
-                bot_username=self.bot_name,
-                history_string=channel_history,
-                message_string=message,
-                message_analysis=analysis.parsed.model_dump_json(indent=2),
-            )
+        if (
+            action.action_type == "respond"
+            and action.response_content
+            and action.response_content != "(none)"
+        ):
+            await send_response(action.response_content)
 
-            await send_response(str(response))
-
-        response_text: str = str(analysis)
-        response_object_text = analysis.parsed.model_dump_json(indent=2)
-        log.debug(
-            f"message_listener:\nresponse_text: {response_text}\n\nresponse_object_text: {response_object_text}\n\n"
-        )
-        return analysis
+        else:
+            log.debug(f"message_listener: no action taken")
+            log.debug(f"reason: {action.reason}")
 
     async def chat_response(
         self, message: nextcord.Message, send_response: Callable[[str], Any]

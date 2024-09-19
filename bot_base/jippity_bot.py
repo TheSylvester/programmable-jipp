@@ -12,6 +12,8 @@ from bot_base.message_chunker import (
 from bot_base.tool_manager import ToolManager
 from jipp.models.jipp_models import LLMError
 from jipp.utils.logging_utils import log
+from nextcord.errors import NotFound
+import asyncio
 
 
 @dataclass
@@ -38,7 +40,6 @@ class JippityBot(commands.Cog):
 
         # Load AI
         self.jippity = Jippity()
-        self.jippity.load_prompts("jippity_ai/prompts")
 
         # Load tools
         self.tool_manager: ToolManager = self.bot.get_cog("ToolManager")
@@ -71,14 +72,16 @@ class JippityBot(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: Message):
-        try:
-            self.log.debug(f"on_message: {message.content}")
-        except UnicodeEncodeError:
-            self.log.debug(f"on_message: <message contains unsupported characters>")
-
         if message.author == self.bot.user:
             return
 
+        # Use Nextcord's get_context to see if it's a command
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
+            await self.bot.process_commands(message)
+            return  # Skip custom logic if the message was a valid command
+
+        # Custom logic for non-command messages
         content = await get_full_text_from_message(message)
         channel_history_str = await get_channel_history(message.channel)
 
@@ -168,6 +171,42 @@ class JippityBot(commands.Cog):
             )
             return
 
+    @commands.command(name="clear_channel", brief="Clear all messages in the channel")
+    async def clear_channel(self, ctx):
+        """Clears all messages in the current channel."""
+        channel_name = ctx.channel.name
+        self.log.info(f"Clearing channel {channel_name}")
+
+        total_deleted = 0
+        try:
+            while True:
+                deleted = await ctx.channel.purge(
+                    limit=100
+                )  # Delete in smaller batches
+                if not deleted:
+                    break
+                total_deleted += len(deleted)
+                await asyncio.sleep(1)  # Short delay between batches
+
+            self.log.info(
+                f"Cleared {total_deleted} messages from channel {channel_name}"
+            )
+            await ctx.send(f"Cleared {total_deleted} messages.", delete_after=5)
+        except NotFound as e:
+            self.log.warning(f"Error while clearing channel {channel_name}: {str(e)}")
+            await ctx.send(
+                f"Cleared {total_deleted} messages. Some messages couldn't be deleted.",
+                delete_after=5,
+            )
+        except Exception as e:
+            self.log.error(
+                f"Unexpected error while clearing channel {channel_name}: {str(e)}"
+            )
+            await ctx.send(
+                f"An error occurred after clearing {total_deleted} messages.",
+                delete_after=5,
+            )
+
     @commands.command(name="ask_llms", brief="Ask multiple LLMs a question")
     async def ask_multiple_llms(self, ctx, *, models_prompt: str):
         default_models = [
@@ -179,7 +218,7 @@ class JippityBot(commands.Cog):
         models: List[str] = []
         prompt = (await get_full_text_from_message(ctx.message)).strip()
 
-        # if the first words in models_prompt are models, then they are models
+        # Parse models and prompt
         words = models_prompt.split()
         model_names = self.jippity.get_model_names()
         for word in words:
@@ -189,35 +228,26 @@ class JippityBot(commands.Cog):
             else:
                 break
 
-        # If no valid models found, use default models
-        if not models:
-            models = default_models
-
-        # Extract the actual prompt
+        models = models or default_models
         prompt = " ".join(words[len(models) :]).strip()
 
         try:
             results = await self.jippity.ask_multiple_llms(models=models, prompt=prompt)
 
-            # Create an embed for each model response, using chunked text if necessary
             for model, conversation in results.items():
-                # If conversation is an error, handle it as an error
                 if isinstance(conversation, LLMError):
                     await ctx.send(f"Error from {model}: {conversation}")
                     continue
 
-                # Chunk the conversation text before adding to the embed
                 chunks = chunk_message_md_friendly(str(conversation))
 
-                # Create embeds for each chunk of conversation
                 for i, chunk in enumerate(chunks):
                     embed = Embed(
                         title=f"Response from {model} (Part {i + 1}/{len(chunks)})",
                         description=chunk,
-                        color=0x00FF00,  # Optional: Set a color for the embed
+                        color=0x00FF00,
                     )
 
-                    # Optionally, add token usage stats if available
                     if hasattr(conversation, "usage"):
                         embed.add_field(
                             name="Tokens Used",
@@ -225,7 +255,6 @@ class JippityBot(commands.Cog):
                             inline=False,
                         )
 
-                    # Send each embed chunk
                     await ctx.send(embed=embed)
 
         except Exception as e:
@@ -258,7 +287,7 @@ class JippityBot(commands.Cog):
         models: List[str] = []
         prompt = (await get_full_text_from_message(ctx.message)).strip()
 
-        # if the first words in models_prompt are models, then they are models
+        # Parse models and prompt
         words = models_prompt.split()
         model_names = self.jippity.get_model_names()
         for word in words:
@@ -268,35 +297,26 @@ class JippityBot(commands.Cog):
             else:
                 break
 
-        # If no valid models found, use default models
-        if not models:
-            models = default_models
-
-        # Extract the actual prompt
+        models = models or default_models
         prompt = " ".join(words[len(models) :]).strip()
 
         try:
             results = await self.jippity.ask_multiple_llms(models=models, prompt=prompt)
 
-            # Create an embed for each model response, using chunked text if necessary
             for model, conversation in results.items():
-                # If conversation is an error, handle it as an error
                 if isinstance(conversation, LLMError):
                     await ctx.send(f"Error from {model}: {conversation}")
                     continue
 
-                # Chunk the conversation text before adding to the embed
                 chunks = chunk_message_md_friendly(str(conversation))
 
-                # Create embeds for each chunk of conversation
                 for i, chunk in enumerate(chunks):
                     embed = Embed(
                         title=f"Response from {model} (Part {i + 1}/{len(chunks)})",
                         description=chunk,
-                        color=0x00FF00,  # Optional: Set a color for the embed
+                        color=0x00FF00,
                     )
 
-                    # Optionally, add token usage stats if available
                     if hasattr(conversation, "usage"):
                         embed.add_field(
                             name="Tokens Used",
@@ -304,7 +324,6 @@ class JippityBot(commands.Cog):
                             inline=False,
                         )
 
-                    # Send each embed chunk
                     await ctx.send(embed=embed)
 
         except Exception as e:
