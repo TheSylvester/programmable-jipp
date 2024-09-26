@@ -1,0 +1,41 @@
+$schema: https://azuremlschemas.azureedge.net/latest/flow.flex.schema.json
+name: web_classification_flex
+description: A flexible flow for classifying URLs that supports parallel execution of tasks.
+environment:
+  image: mcr.microsoft.com/azureml/promptflow/promptflow-runtime:latest
+inputs:
+  url:
+    type: string
+    description: The URL to classify
+outputs:
+  category:
+    type: string
+    description: The classification category of the URL
+  evidence:
+    type: string
+    description: Summary evidence for classification
+nodes:
+  - name: fetch_text_content_from_url
+    type: Python
+    inputs:
+      url: ${input.url}
+    outputs:
+      content: text
+    script: |
+      # Python code to fetch content from URL
+      def fetch(url):
+          return fetch_content(url)
+
+  - name: summarize_text_content
+    type: LLM
+    inputs:
+      content: ${fetch_text_content_from_url.output.content}
+    outputs:
+      summary: text
+    connection: azure_openai
+    prompt_template: |
+      Summarize the following content in under 100 words: {{ content }}
+
+flow:
+  - [fetch_text_content_from_url, summarize_text_content] # Parallel execution of fetch and summarize nodes
+  - [classify_with_llm] # Classify after previous steps

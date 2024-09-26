@@ -1,0 +1,58 @@
+$schema: https://azuremlschemas.azureedge.net/latest/flow.dag.schema.json
+name: web_classification_dag
+description: A multi-step DAG flow for classifying URLs using Python and LLM nodes.
+environment:
+  image: mcr.microsoft.com/azureml/promptflow/promptflow-runtime:latest
+inputs:
+  url:
+    type: string
+    description: The URL to classify
+outputs:
+  category:
+    type: string
+    description: The classification category of the URL
+  evidence:
+    type: string
+    description: Summary evidence for classification
+nodes:
+  - name: fetch_text_content_from_url
+    type: Python
+    inputs:
+      url: ${input.url}
+    outputs:
+      content: text
+    script: |
+      # Python code to fetch content from URL
+      def fetch(url):
+          return fetch_content(url)
+
+  - name: summarize_text_content
+    type: LLM
+    inputs:
+      content: ${fetch_text_content_from_url.output.content}
+    outputs:
+      summary: text
+    connection: azure_openai
+    prompt_template: |
+      Summarize the following content in under 100 words: {{ content }}
+
+  - name: classify_with_llm
+    type: LLM
+    inputs:
+      summary: ${summarize_text_content.output.summary}
+    outputs:
+      category: text
+    connection: azure_openai
+    prompt_template: |
+      Classify the following summary into a web category: {{ summary }}
+
+  - name: format_result
+    type: Python
+    inputs:
+      category: ${classify_with_llm.output.category}
+    outputs:
+      result: json
+    script: |
+      # Python code to format result
+      def format_result(category):
+          return {"category": category}
