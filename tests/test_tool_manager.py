@@ -1,9 +1,9 @@
 import pytest
 from nextcord.ext import commands
 from jipp.models.jipp_models import Tool
-from smart_task_manager import SmartTaskManager
-from task_manager import TaskManager, CreateTask, StopTask, ListTasks
-from tool_manager import ToolManager
+from bot_base.smart_task_manager import SmartTaskManager
+from bot_base.task_manager import TaskManager, CreateTask, StopTask, ListTasks
+from bot_base.tool_manager import ToolManager
 
 
 class MockBot(commands.Bot):

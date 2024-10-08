@@ -1,8 +1,8 @@
 # utils.py
 
 import yaml
-from typing import Dict, Any, List
-from .node import BaseNode, PythonNode, LLMNode, APINode
+from typing import Dict, Any, List, Type
+from .node import Node, NodeDefinition
 
 
 class Graph:
@@ -12,7 +12,7 @@ class Graph:
 
     def __init__(
         self,
-        nodes: Dict[str, BaseNode],
+        nodes: Dict[str, Node],
         flow_steps: List[Any],
         flow_type: str = "DAG",
         inputs: Dict[str, Any] = None,
@@ -22,7 +22,7 @@ class Graph:
         Initializes the graph.
 
         Args:
-            nodes (Dict[str, BaseNode]): The nodes in the graph.
+            nodes (Dict[str, Node]): The nodes in the graph.
             flow_steps (List[Any]): The flow steps.
             flow_type (str): The type of flow ('DAG' or 'Flex').
             inputs (Dict[str, Any], optional): Flow-level inputs.
@@ -33,41 +33,85 @@ class Graph:
         self.flow_type = flow_type
         self.inputs = inputs or {}
         self.outputs = outputs or {}
+        self.dependencies = self._parse_dependencies(flow_steps)
+
+    def _parse_dependencies(self, flow_steps: List[Any]) -> Dict[str, List[str]]:
+        """
+        Parses flow steps to extract dependencies between nodes.
+
+        Args:
+            flow_steps (List[Any]): The flow steps from the YAML configuration.
+
+        Returns:
+            Dict[str, List[str]]: A mapping of node names to their dependencies.
+        """
+        dependencies = {}
+        if self.flow_type == "DAG":
+            for step in flow_steps:
+                if isinstance(step, dict):
+                    node_name = step["name"]
+                    dependencies[node_name] = step.get("dependencies", [])
+                elif isinstance(step, list):
+                    for node in step:
+                        node_name = node["name"]
+                        dependencies[node_name] = node.get("dependencies", [])
+                else:
+                    raise ValueError("Invalid step format in DAG flow")
+        elif self.flow_type == "Flex":
+            for step in flow_steps:
+                if isinstance(step, dict):
+                    if "when" in step and "then" in step:
+                        for node_name in step["then"]:
+                            dependencies[node_name] = (
+                                []
+                            )  # No explicit dependencies in Flex flow
+                    elif "output" in step:
+                        # Output steps don't have dependencies
+                        pass
+                    else:
+                        raise ValueError("Invalid step format in Flex flow")
+                else:
+                    raise ValueError("Invalid step format in Flex flow")
+        else:
+            raise ValueError(f"Unsupported flow type: {self.flow_type}")
+        return dependencies
 
 
 def adapt_node(node_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Adapts any node type to a uniform structure.
     """
-    adapted_node = node_dict.copy()
-    node_type = node_dict["type"]
+    adapted_node = {
+        "name": node_dict["name"],
+        "type": node_dict["type"].capitalize(),  # Normalize the type
+        "inputs": node_dict.get("inputs", {}),
+        "outputs": node_dict.get("outputs", {}),
+        "max_retries": node_dict.get("max_retries", 0),
+    }
 
-    if node_type == "LLM":
-        adapted_node["function"] = "jipp.jipp_engine.ask_llm"
-        adapted_node["inputs"] = {
-            "prompt": node_dict["prompt_template"],
-            "connection": node_dict["connection"],
-            # Add any other necessary inputs for ask_llm
-        }
-    elif node_type == "API":
+    node_type = node_dict["type"].lower()  # Use lowercase for comparison
+
+    if node_type == "llm":
+        adapted_node["function"] = "jipp.adapters.llm_adapter.execute_llm"
+        adapted_node["model"] = node_dict.get("model", "default_model")
+        adapted_node["prompt_template"] = node_dict.get("prompt_template", "")
+    elif node_type == "api":
         adapted_node["function"] = "jipp.flow.node_manager.NodeManager.api_call"
-        adapted_node["inputs"] = {
-            "url": node_dict["api"],
-            "method": node_dict.get("method", "GET"),
-            # Add any other necessary inputs for API calls
-        }
-    elif node_type == "Python":
-        # Python nodes should already have a 'function' field, but we can ensure it's present
-        if "function" not in adapted_node:
+        if "inputs" not in adapted_node:
+            adapted_node["inputs"] = {
+                "url": node_dict.get("api", ""),
+                "method": node_dict.get("method", "GET"),
+            }
+    elif node_type == "python":
+        if "function" not in node_dict:
             raise ValueError(
                 f"Python node '{node_dict['name']}' is missing 'function' field"
             )
-    else:
-        raise ValueError(f"Unsupported node type: {node_type}")
+        adapted_node["function"] = node_dict["function"]
 
-    # Ensure common fields are present
-    adapted_node["max_retries"] = node_dict.get("max_retries", 0)
-    adapted_node["on_failure"] = node_dict.get("on_failure")
+    # Only include on_failure if it's explicitly set
+    if "on_failure" in node_dict:
+        adapted_node["on_failure"] = node_dict["on_failure"]
 
     return adapted_node
 
@@ -87,7 +131,12 @@ def load_flow_from_yaml(yaml_file: str) -> Graph:
 
     # Determine flow type
     schema_url = config_data.get("$schema", "").lower()
-    flow_type = "DAG" if "dag" in schema_url else "Flex"
+    if "dag" in schema_url:
+        flow_type = "DAG"
+    elif "flex" in schema_url:
+        flow_type = "Flex"
+    else:
+        raise ValueError(f"Unsupported flow type: {schema_url}")
 
     # Parse flow-level inputs and outputs
     flow_inputs = config_data.get("inputs", {})
@@ -96,17 +145,16 @@ def load_flow_from_yaml(yaml_file: str) -> Graph:
     # Parse nodes
     nodes = {}
     for node_dict in config_data.get("nodes", []):
-        adapted_node_dict = adapt_node(node_dict)
-        node_type = adapted_node_dict["type"]
-        if node_type == "Python":
-            node = PythonNode(**adapted_node_dict)
-        elif node_type == "LLM":
-            node = LLMNode(**adapted_node_dict)
-        elif node_type == "API":
-            node = APINode(**adapted_node_dict)
-        else:
+        node_type = node_dict.get("type", "").lower()
+        if node_type not in ["python", "llm", "api"]:
             raise ValueError(f"Unsupported node type: {node_type}")
-        nodes[node.name] = node
+
+        adapted_node_dict = adapt_node(node_dict)
+        node_definition = NodeDefinition(**adapted_node_dict)
+        node = Node(
+            definition=node_definition, callable=lambda: None
+        )  # placeholder callable
+        nodes[node_definition.name] = node
 
     # Parse flow steps
     flow_steps = config_data.get("flow", [])
@@ -121,3 +169,46 @@ def load_flow_from_yaml(yaml_file: str) -> Graph:
     )
 
     return graph
+
+
+from pydantic import BaseModel, create_model, Field
+from typing import Dict, Any
+
+
+def yaml_to_pydantic_model(
+    schema: List[Dict[str, Any]], model_name: str = "DynamicModel"
+) -> Type[BaseModel]:
+    """
+    Converts a YAML schema dictionary of inputs/outputs into a dynamic Pydantic BaseModel.
+
+    :param schema: The schema dictionary loaded from YAML defining inputs/outputs.
+    :param model_name: The name of the dynamic Pydantic model to be created.
+    :return: A Pydantic BaseModel derived from the provided schema.
+    """
+
+    fields = {}
+    for field in schema:
+        field_name = field["name"]
+        field_type = field["type"]
+        description = field.get(
+            "description", field_name
+        )  # Use name if description is not available
+
+        # Map string types to Python types
+        type_mapping = {
+            "string": str,
+            "int": int,
+            "float": float,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+        }
+        python_type = type_mapping.get(
+            field_type, Any
+        )  # Default to Any if type is not recognized
+
+        # Create a field with description
+        fields[field_name] = (python_type, Field(description=description))
+
+    # Dynamically create a Pydantic model
+    return create_model(model_name, **fields)

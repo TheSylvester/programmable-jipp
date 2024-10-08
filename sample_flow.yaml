@@ -1,0 +1,12 @@
+nodes:
+  - name: node_a
+    type: Python
+    dependencies: []
+  - name: node_b
+    type: LLM
+    dependencies: [node_a]
+  - name: node_c
+    type: API
+    dependencies: [node_b]
+flow:
+  - [node_a, node_b, node_c]

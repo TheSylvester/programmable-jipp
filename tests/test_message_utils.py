@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from typing import List
 from nextcord import Attachment, Embed, Message
-from message_chunker import (
+from bot_base.message_chunker import (
     get_full_text_from_message,
     get_image_urls_from_message,
     send_chunked_message,

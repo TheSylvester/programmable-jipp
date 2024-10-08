@@ -1,63 +1,45 @@
 # node.py
 
-import importlib
-from pydantic import BaseModel, Field, model_validator
-from typing import Any, Dict, Optional, Union, Callable
+from pydantic import BaseModel, Field
+from typing import TYPE_CHECKING, Any, Dict, Optional, Callable
+
+if TYPE_CHECKING:
+    from .execution_context import ExecutionContext
 
 
-class BaseNode(BaseModel):
-    """
-    Base class for all node types.
-    """
-
+class NodeDefinition(BaseModel):
     name: str
-    type: str  # 'Python', 'LLM', 'API', etc.
+    type: str
+    function: str
     inputs: Dict[str, Any]
     outputs: Dict[str, Any]
     max_retries: int = 0
-    on_failure: Optional[str] = None
-    function: str  # Path to the function (e.g., "module.submodule.function_name")
+    model: Optional[str] = None  # For LLM nodes
+    prompt_template: Optional[str] = None  # For LLM nodes
+    on_failure: Optional[Callable[[Exception, "Node", "ExecutionContext"], None]] = None
+    on_success: Optional[Callable[["Node", "ExecutionContext"], None]] = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def check_required_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        node_type = values.get("type")
-        if not node_type:
-            raise ValueError("Node 'type' is required.")
-        return values
-
-    def get_callable(self) -> Callable:
-        module_name, function_name = self.function.rsplit(".", 1)
-        module = importlib.import_module(module_name)
-        return getattr(module, function_name)
-
-
-class PythonNode(BaseNode):
-    """
-    Node representing a Python script execution.
-    """
-
-    type: str = "Python"
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.name:
+            raise ValueError("Node name cannot be empty")
+        if self.type.lower() not in ["python", "llm", "api"]:
+            raise ValueError(f"Invalid node type: {self.type}")
+        self.type = (
+            self.type.capitalize()
+        )  # Normalize the type to capitalize first letter
 
 
-class LLMNode(BaseNode):
-    """
-    Node representing a Large Language Model (LLM) execution.
-    """
+class Node(BaseModel):
+    definition: NodeDefinition
+    callable: Callable
 
-    type: str = "LLM"
-    connection: str  # e.g., 'openai'
-    prompt_template: str
+    def __str__(self):
+        return f"Node(name={self.definition.name}, type={self.definition.type})"
 
+    def __repr__(self):
+        return f"Node(name={self.definition.name}, type={self.definition.type}, function={self.definition.function})"
 
-class APINode(BaseNode):
-    """
-    Node representing an API call.
-    """
-
-    type: str = "API"
-    api: str  # API endpoint or identifier
-
-
-# Union of all node types for type checking
-Node = Union[PythonNode, LLMNode, APINode]
+    async def execute(self, input_data: Dict[str, Any]) -> Any:
+        # Implementation can be added here if needed
+        pass

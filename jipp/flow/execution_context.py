@@ -1,7 +1,7 @@
 # execution_context.py
 
 from pydantic import BaseModel, Field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 class ExecutionContext(BaseModel):
@@ -13,6 +13,11 @@ class ExecutionContext(BaseModel):
     metrics: Dict[str, Any] = Field(default_factory=dict)
     outputs: Dict[str, Any] = Field(default_factory=dict)
     cache: Dict[str, Any] = Field(default_factory=dict)  # Simple caching mechanism
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    error: Optional[str] = None
+
+    def set_error(self, error: str) -> None:
+        self.error = error
 
     def set_node_output(self, node_name: str, outputs: Dict[str, Any]) -> None:
         """
@@ -44,6 +49,15 @@ class ExecutionContext(BaseModel):
             and reference.endswith("}")
         ):
             ref = reference[2:-1]  # Strip '${' and '}'
+
+            # Check cache first
+            if ref in self.cache:
+                return self.cache[ref]
+
+            # Check inputs
+            if ref in self.inputs:
+                return self.inputs[ref]
+
             parts = ref.split(".")
             value = self.context
             for part in parts:
@@ -66,7 +80,8 @@ class ExecutionContext(BaseModel):
         Args:
             input_data (Dict[str, Any]): The input data.
         """
-        self.context["input"] = input_data
+        self.inputs.update(input_data)
+        self.context["input"] = input_data.get("input")
 
     def set_output(self, outputs: Dict[str, Any]) -> None:
         """

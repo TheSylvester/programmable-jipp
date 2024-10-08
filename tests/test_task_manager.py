@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 from nextcord.ext import commands
-from task_manager import TaskManager, CreateTask, StopTask, ListTasks
+from bot_base.task_manager import TaskManager, CreateTask, StopTask, ListTasks
 
 
 class MockBot(commands.Bot):
@@ -121,7 +121,7 @@ async def test_task_execution(task_manager):
 
 # Test the setup function
 def test_setup(bot):
-    from task_manager import setup
+    from bot_base.task_manager import setup
 
     setup(bot)
     assert any(isinstance(cog, TaskManager) for cog in bot.cogs.values())
